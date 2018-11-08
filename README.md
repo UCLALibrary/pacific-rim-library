@@ -43,26 +43,26 @@ On delete events, it removes any traces of the record represented by the deleted
     source venv-prl/bin/activate
     ```
 
-5. Install the latest `setuptools`:
+6. Install the latest `setuptools`:
 
     ```bash
     pip3 install --upgrade setuptools
     ```
 
-6. Install Python dependencies:
+7. Install Python dependencies:
 
     ```bash
     python3 setup.py install
     ```
-    If `plyvel` fails to install, try installing with `pip3` and then re-do Step 6.
+    If `plyvel` fails to install, try installing with `pip3` and then re-do this step.
 
     On OSX: if `lxml` fails to install, you may need to install it with `STATIC_DEPS` set to `true` per https://lxml.de/installation.html.
 
-7. Fill in the blanks in `config.toml`.
+8. Fill in the blanks in `config.toml`.
 
-8. Edit `logging.yml` to configure logging as desired.
+9. Edit `logging.yml` to configure logging as desired.
 
-9. Install the configuration files:
+10. Install the configuration files:
 
     ```bash
     python3 -m pacific_rim_library.configure
