@@ -1,0 +1,6 @@
+__pycache__
+.pytest_cache
+.eggs
+.vscode
+*venv*
+build

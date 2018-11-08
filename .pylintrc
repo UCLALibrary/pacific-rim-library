@@ -1,0 +1,21 @@
+[MASTER]
+
+ignore=setup.py,
+       __init__.py
+
+
+[MESSAGES CONTROL]
+
+disable=broad-except
+
+
+[FORMAT]
+
+max-line-length=80
+
+
+[BASIC]
+
+good-names=e,
+           f,
+           s3

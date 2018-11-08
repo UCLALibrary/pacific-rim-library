@@ -1,0 +1,26 @@
+version: 1
+formatters:
+  pacific_rim_library:
+    format: '%(asctime)s | %(levelname)-8s | %(message)s'
+    datefmt: '%Y-%m-%d %I:%M:%S %p UTC%z'
+handlers:
+  console:
+    class: logging.StreamHandler
+    formatter: pacific_rim_library
+    level: INFO
+    stream: ext://sys.stdout
+  file_info:
+    class: logging.FileHandler
+    formatter: pacific_rim_library
+    level: INFO
+    filename: pacific_rim_library.log
+  file_debug:
+    class: logging.handlers.RotatingFileHandler
+    formatter: pacific_rim_library
+    level: DEBUG
+    filename: pacific_rim_library.debug.log
+    maxBytes: 1048576
+    backupCount: 7
+root:
+  level: DEBUG
+  handlers: [console, file_info, file_debug]
