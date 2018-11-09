@@ -197,7 +197,7 @@ class Indexer(object):
                 deleted_keys.append(key)
 
         if deleted_keys:
-            logging.info('Updated harvester settings for %s', deleted_keys)
+            logging.info('Deleted harvester settings for %s', deleted_keys)
 
         # Add all keys in the harvester settings file to LevelDB, since some of their values may have changed.
         for harvest_key, harvest_metadata in new_harvester_settings.items():
@@ -210,7 +210,7 @@ class Indexer(object):
             updated_keys.append(key)
 
         if updated_keys:
-            logging.info('Deleted harvester settings for %s', updated_keys)
+            logging.info('Updated harvester settings for %s', updated_keys)
 
     def update_record(self, path: str):
         """Updates a metadata record in PRL.
