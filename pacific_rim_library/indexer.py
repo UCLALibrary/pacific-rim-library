@@ -516,13 +516,20 @@ if __name__ == '__main__':
     # Watch harvest directory for changes.
     observer = Observer()
     observer.schedule(
-        IndexerEventHandler(indexer),
+        IndexerEventHandler(
+            indexer,
+            ignore_patterns=['*/.*/*'],
+            ignore_directories=True
+        ),
         indexer_args['harvest_dir'],
         recursive=True)
 
     # Also watch harvester settings directory for changes.
     observer.schedule(
-        HarvestSettingsEventHandler(indexer),
+        HarvestSettingsEventHandler(
+            indexer,
+            ignore_directories=True
+        ),
         os.path.dirname(indexer.get_harvester_settings_path())
     )
     observer.start()
