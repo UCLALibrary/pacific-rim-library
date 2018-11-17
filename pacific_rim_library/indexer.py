@@ -26,7 +26,7 @@ import plyvel
 from pysolr import Solr
 import requests
 from sickle import Sickle
-from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserver
 
 from pacific_rim_library.configure import DEFAULTS, get_config
 from pacific_rim_library.prl_solr_document import PRLSolrDocument
@@ -514,7 +514,7 @@ if __name__ == '__main__':
     indexer.connect()
 
     # Watch harvest directory for changes.
-    observer = Observer()
+    observer = PollingObserver()
     observer.schedule(
         IndexerEventHandler(
             indexer,
