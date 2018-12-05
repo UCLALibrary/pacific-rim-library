@@ -10,6 +10,7 @@ import logging
 import logging.config
 from mimetypes import guess_extension
 import os
+from queue import Queue
 import time
 import toml
 from typing import Any, Dict
@@ -513,31 +514,40 @@ if __name__ == '__main__':
     indexer = Indexer(indexer_args, indexer_config)
     indexer.connect()
 
+    # Queue for exceptions, shared across all threads.
+    exceptions_queue = Queue()
+
     # Watch harvest directory for changes.
-    observer = Observer()
-    observer.schedule(
+    harvest_observer = Observer()
+    harvest_observer.schedule(
         IndexerEventHandler(
             indexer,
+            exceptions_queue,
             ignore_patterns=['*/.*/*'],
             ignore_directories=True
         ),
         indexer_args['harvest_dir'],
         recursive=True)
+    harvest_observer.start()
 
     # Also watch harvester settings directory for changes.
-    observer.schedule(
+    harvestersettings_observer = Observer()
+    harvestersettings_observer.schedule(
         HarvestSettingsEventHandler(
             indexer,
+            exceptions_queue,
             ignore_directories=True
         ),
         os.path.dirname(indexer.get_harvester_settings_path())
     )
-    observer.start()
+    harvestersettings_observer.start()
 
+    # Wait for the watcher threads to report any exceptions, and exit on the first one.
     try:
         logging.info('Waiting for changes...')
-        while True:
+        while exceptions_queue.empty():
             time.sleep(1)
+        raise exceptions_queue.get()
     except KeyboardInterrupt:
         # Ctrl-C gets us here.
         logging.info('Keyboard interrupt, exiting...')
@@ -547,8 +557,11 @@ if __name__ == '__main__':
     except Exception as e:
         logging.critical('Unexpected error: %s', e)
         logging.critical('Exiting...')
+    finally:
+        harvest_observer.stop()
+        harvest_observer.join()
 
-    observer.stop()
-    observer.join()
+        harvestersettings_observer.stop()
+        harvestersettings_observer.join()
 
-    indexer.disconnect()
+        indexer.disconnect()
