@@ -550,14 +550,14 @@ if __name__ == '__main__':
         raise exceptions_queue.get()
     except KeyboardInterrupt:
         # Ctrl-C gets us here.
-        logging.info('Keyboard interrupt, exiting...')
+        logging.info('Keyboard interrupt')
     except IndexerError as e:
         logging.critical(e)
-        logging.critical('Exiting...')
     except Exception as e:
         logging.critical('Unexpected error: %s', e)
-        logging.critical('Exiting...')
     finally:
+        logging.info('Exiting...')
+
         harvest_observer.stop()
         harvest_observer.join()
 
@@ -565,3 +565,5 @@ if __name__ == '__main__':
         harvestersettings_observer.join()
 
         indexer.disconnect()
+
+        logging.info('Done.')
