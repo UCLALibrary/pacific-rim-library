@@ -111,9 +111,8 @@ class PRLSolrDocument:
                 for decade in decades:
                     self._add_value_possibly_duplicate_key('decade', decade, doc)
                 doc['sort_decade'] = min(decades, key=lambda x: int(x))
-                logging.debug('years "{}" -> decades "{}"'.format(years, decades))
             else:
-                logging.error('Failed to represent %s as decades', str(years))
+                logging.debug('Failed to represent "%s" as a list of decades', str(years))
 
     def _add_external_links(self):
         doc = self.get_pysolr_doc()
@@ -125,7 +124,6 @@ class PRLSolrDocument:
             for tag in self.soup.find('dc').find_all('identifier'):
                 value = tag.string
                 if value is not None:
-                    logging.debug(tag.name + ' ' + value)
                     try:
                         URLValidator()(value)
                         if os.path.splitext(urllib.parse.urlparse(value).path)[1] not in ['.jpg', '.jpeg', '.png', '.tif', '.tiff']:
@@ -178,7 +176,6 @@ class PRLSolrDocument:
                     try:
                         URLValidator()(possible_url)
                         if possible_url not in checked_urls:
-                            logging.debug('Checking for thumbnail at {}'.format(possible_url))
                             # TODO: maybe check path extension before doing get request?
                             #r = requests.get(possibleUrl)
 
@@ -187,8 +184,8 @@ class PRLSolrDocument:
                             if resp is not None:
                                 try:
                                     m = re.search(re.compile('image/(?:jpeg|tiff|png)'), resp.headers['content-type'])
-                                    logging.debug('Match: {}'.format(m))
                                     if m is not None:
+                                        logging.debug('Found image at {}'.format(resp.url))
                                         return {
                                             'url': resp.url,
                                             'content-type': resp.headers['content-type']
@@ -217,13 +214,13 @@ class PRLSolrDocument:
                 break
             except requests.Timeout:
                 # try a couple more times, server may be restarting
-                logging.debug('Trying again...')
+                logging.debug('Network timeout while trying to fetch image at {}, trying again...')
                 n_tries += 1
             except (requests.ConnectionError, requests.TooManyRedirects, requests.URLRequired, requests.HTTPError, requests.RequestException):
                 return None
 
         if n_tries == max_tries:
-            logging.debug('Network timeout: {}'.format(url))
+            logging.debug('No more tries left, moving on')
             return None
         else:
             return r

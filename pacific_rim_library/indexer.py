@@ -230,7 +230,6 @@ class Indexer(object):
                 try:
                     self.solr.add([pysolr_doc])
                     logging.debug('%s updated in Solr', record_identifier)
-                    logging.debug(json.dumps(pysolr_doc, indent=4))
                     self.record_identifiers.put(path.encode(), record_identifier.encode())
                 except plyvel.Error as e:
                     self.solr.delete(id=record_identifier)
