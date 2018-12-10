@@ -119,14 +119,15 @@ class Indexer(object):
 
     def get_harvester_settings_key(self, path: str) -> str:
         """
-        Returns a relative path with exactly two components.
+        Returns a relative path with either one or two components.
         
-        Intended to be called ONLY on paths representing collection/set directories.
+        Intended to be called ONLY on paths representing institution/repository or collection/set directories.
         """
-
-        collection_id = os.path.basename((path))
-        institution_id = os.path.basename(os.path.dirname(path))
-        return os.path.join(institution_id, collection_id)
+        for harvest_dir_prefix in self.config['filesystem']['harvest_dir_prefixes']:
+            if os.path.isabs(path) and os.path.isabs(harvest_dir_prefix) or not os.path.isabs(path) and not os.path.isabs(harvest_dir_prefix):
+                common_path = os.path.commonpath([path, harvest_dir_prefix])
+                if common_path:
+                    return os.path.relpath(path, common_path)
 
     def read_harvester_settings_file(self) -> Dict[str, Dict[str, str]]:
         """Returns a dictionary representing the harvester settings.
@@ -306,10 +307,12 @@ class Indexer(object):
         file_path = file_object.name
         identifier = urllib.parse.unquote(os.path.splitext(os.path.basename(file_path))[0])
         institution_key = os.path.basename(os.path.dirname(os.path.dirname(file_path)))
+        collection_key = os.path.basename(os.path.dirname(file_path))
 
-        harvester_settings_key = self.get_harvester_settings_key(os.path.dirname(file_path))
+        harvester_settings_key_institution = self.get_harvester_settings_key(os.path.dirname(os.path.dirname(file_path)))
+        harvester_settings_key_collection = self.get_harvester_settings_key(os.path.dirname(file_path))
         try:
-            harvester_settings_serialized_encoded = self.harvester_settings.get(harvester_settings_key.encode())
+            harvester_settings_serialized_encoded = self.harvester_settings.get(harvester_settings_key_institution.encode()) or self.harvester_settings.get(harvester_settings_key_collection.encode())
             harvester_settings_serialized = harvester_settings_serialized_encoded.decode()
             harvester_settings = json.loads(harvester_settings_serialized)
         except plyvel.Error as e:
@@ -323,7 +326,6 @@ class Indexer(object):
             raise IndexerError('Harvester settings are not valid JSON: {}'.format(e))
 
         base_url = harvester_settings['base_url']
-        collection_key = harvester_settings['set_spec'] if harvester_settings['set_spec'] != '' else None
         institution_name = harvester_settings['repository_name']
 
         # Get the collection name. If we hit the OAI-PMH repository, cache the response in memory.
