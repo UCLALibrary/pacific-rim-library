@@ -160,7 +160,7 @@ class Indexer(object):
             # Invalid JSON.
             raise IndexerError('Cannot load scheduled harvests settings: {}'.format(e))
         except UnicodeDecodeError as e:
-            logging.info('Config file is not JSON: {}'.format(e))
+            logging.debug('Config file is not JSON: {}'.format(e))
 
             # Open the file in binary mode and try to parse it with javaobj.
             with open(harvester_settings_path, 'rb') as harvester_settings_file:
@@ -268,6 +268,7 @@ class Indexer(object):
                     **{'rows': 1})
                 if len(docs) != 1:
                     raise IndexerError('Solr doesn\'t have unique IDs')
+                doc = docs[0]
             except plyvel.Error as e:
                 raise IndexerError('Failed to GET on LevelDB: {}'.format(e))
             except Exception as e:
@@ -279,7 +280,7 @@ class Indexer(object):
                 self.record_identifiers.delete(path.encode())
                 for doc in docs:
                     if 'thumbnail_url' in doc:
-                        self.unsave_thumbnail(record_identifier)
+                        self.unsave_thumbnail(record_identifier, doc['institutionKey'], doc['collectionKey'])
                 logging.info('%s removed from PRL', record_identifier)
             except plyvel.Error as e:
                 raise IndexerError('Failed to DELETE on LevelDB: {}'.format(e))
@@ -389,8 +390,8 @@ class Indexer(object):
         try:
             filepath = os.path.join(
                 os.path.abspath(os.path.expanduser(self.config['s3']['sync']['source'])),
-                'institution_key', # TODO
-                'collection_key', # TODO
+                prl_solr_document.get_pysolr_doc()['institutionKey'],
+                prl_solr_document.get_pysolr_doc()['collectionKey'],
                 prl_solr_document.thumbnail_s3_key + guess_extension(prl_solr_document.original_thumbnail_metadata()['content-type'])
                 )
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -444,7 +445,7 @@ class Indexer(object):
         except BotoCoreError as e:
             raise IndexerError('Failed to put thumbnail on S3: {}'.format(e.msg))
 
-    def unsave_thumbnail(self, record_identifier: str):
+    def unsave_thumbnail(self, record_identifier: str, institution_key: str, collection_key: str):
         """Removes thumbnail from the local filesystem and from S3."""
 
         try:
@@ -452,8 +453,8 @@ class Indexer(object):
             filepath = os.path.join(
                 os.path.abspath(os.path.expanduser(
                     self.config['s3']['sync']['source'])),
-                'institution_key',
-                'collection_key',
+                institution_key,
+                collection_key,
                 thumbnail_s3_key + guess_extension(self.s3.get_object(
                     Bucket=self.config['s3']['sync']['destination']['s3_uri'],
                     Key=thumbnail_s3_key)['ContentType']))
