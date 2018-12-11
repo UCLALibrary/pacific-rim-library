@@ -308,7 +308,6 @@ class Indexer(object):
         file_path = file_object.name
         identifier = urllib.parse.unquote(os.path.splitext(os.path.basename(file_path))[0])
         institution_key = os.path.basename(os.path.dirname(os.path.dirname(file_path)))
-        collection_key = os.path.basename(os.path.dirname(file_path))
 
         harvester_settings_key_institution = self.get_harvester_settings_key(os.path.dirname(os.path.dirname(file_path)))
         harvester_settings_key_collection = self.get_harvester_settings_key(os.path.dirname(file_path))
@@ -327,6 +326,7 @@ class Indexer(object):
             raise IndexerError('Harvester settings are not valid JSON: {}'.format(e))
 
         base_url = harvester_settings['base_url']
+        collection_key = harvester_settings['set_spec'] if harvester_settings['set_spec'] != '' else os.path.basename(os.path.dirname(file_path))
         institution_name = harvester_settings['repository_name']
 
         # Get the collection name. If we hit the OAI-PMH repository, cache the response in memory.
