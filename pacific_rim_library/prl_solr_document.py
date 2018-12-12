@@ -4,6 +4,7 @@ import collections
 from io import TextIOWrapper
 import logging
 import logging.config
+from mimetypes import guess_type
 import os
 import re
 from typing import Dict, List
@@ -176,19 +177,16 @@ class PRLSolrDocument:
                     try:
                         URLValidator()(possible_url)
                         if possible_url not in checked_urls:
-                            # TODO: maybe check path extension before doing get request?
-                            #r = requests.get(possibleUrl)
-
-                            resp = self._make_thumbnail_request(requests.head, possible_url, False, True)
-
-                            if resp is not None:
+                            # Try to guess the media type
+                            guessed_type = guess_type(possible_url)[0]
+                            if guessed_type:
                                 try:
-                                    m = re.search(re.compile('image/(?:jpeg|tiff|png)'), resp.headers['content-type'])
-                                    if m is not None:
-                                        logging.debug('Found image at {}'.format(resp.url))
+                                    mime_type_match = re.search(re.compile('image/.+'), guessed_type)
+                                    if mime_type_match is not None:
+                                        logging.debug('Found image at {}'.format(possible_url))
                                         return {
-                                            'url': resp.url,
-                                            'content-type': resp.headers['content-type']
+                                            'url': possible_url,
+                                            'content-type': guessed_type
                                         }
                                     else:
                                         checked_urls.append(possible_url)

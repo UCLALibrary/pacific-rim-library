@@ -421,10 +421,10 @@ class Indexer(object):
                     else:
                         # No more tries left, so fail
                         msg = 'Failed to download thumbnail after {} tries: {}'.format(n_tries, str(e))
-                        raise IndexerError(msg)
+                        logging.debug(msg)
                 except (requests.RequestException, IOError) as e:
                     msg = 'Failed to download thumbnail: {}'.format(e)
-                    raise IndexerError(msg)
+                    logging.debug(msg)
         except Exception as e:
             raise IndexerError(
                 'Failed to put thumbnail on local filesystem: {}'.format(e))
