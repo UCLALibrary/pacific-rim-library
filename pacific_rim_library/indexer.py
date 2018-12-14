@@ -79,7 +79,7 @@ class Indexer(object):
         try:
             solr_base_url = self.config['solr']['base_url']
             URLValidator()(solr_base_url)
-            self.solr = Solr(solr_base_url)
+            self.solr = Solr(solr_base_url, always_commit=True)
             self.s3 = boto3.Session(
                 profile_name=self.config['s3']['configure']['profile_name']
             ).client('s3')
@@ -262,17 +262,15 @@ class Indexer(object):
         if not self.args['dry_run']:
             try:
                 record_identifier = self.record_identifiers.get(path.encode()).decode()
-                solr_escaped_record_identifier = record_identifier.replace(':', '\\:')
                 docs = self.solr.search(
-                    'id:{0}'.format(solr_escaped_record_identifier),
+                    'id:"{0}"'.format(record_identifier),
                     **{'rows': 1})
                 if len(docs) != 1:
                     raise IndexerError('Solr doesn\'t have unique IDs')
-                doc = docs[0]
             except plyvel.Error as e:
                 raise IndexerError('Failed to GET on LevelDB: {}'.format(e))
             except Exception as e:
-                raise IndexerError('Failed to search for Solr document: {}'.format(e))
+                raise IndexerError('Failed to search for Solr document {}: {}'.format(record_identifier, e))
 
             try:
                 self.solr.delete(id=record_identifier)
