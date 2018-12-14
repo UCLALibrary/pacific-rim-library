@@ -303,56 +303,7 @@ class Indexer(object):
 
     def get_solr_document(self, file_object: TextIOWrapper) -> PRLSolrDocument:
         """Builds a Solr document for PRL."""
-
-        # Get all we can from the filename.
-        file_path = file_object.name
-        identifier = urllib.parse.unquote(os.path.splitext(os.path.basename(file_path))[0])
-        institution_key = os.path.basename(os.path.dirname(os.path.dirname(file_path)))
-
-        harvester_settings_key_institution = self.get_harvester_settings_key(os.path.dirname(os.path.dirname(file_path)))
-        harvester_settings_key_collection = self.get_harvester_settings_key(os.path.dirname(file_path))
-        try:
-            harvester_settings_serialized_encoded = self.harvester_settings.get(harvester_settings_key_institution.encode()) or self.harvester_settings.get(harvester_settings_key_collection.encode())
-            harvester_settings_serialized = harvester_settings_serialized_encoded.decode()
-            harvester_settings = json.loads(harvester_settings_serialized)
-        except plyvel.Error as e:
-            # We can't go on without LevelDB.
-            raise IndexerError('Failed to GET on LevelDB: {}'.format(e))
-        except AttributeError as e:
-            # This should never happen. Harvester settings should represent all harvested files.
-            raise IndexerError('Cannot find harvester settings in LevelDB for {}'.format(harvester_settings_key))
-        except JSONDecodeError as e:
-            # This should never happen.
-            raise IndexerError('Harvester settings are not valid JSON: {}'.format(e))
-
-        base_url = harvester_settings['base_url']
-        collection_key = harvester_settings['set_spec'] if harvester_settings['set_spec'] != '' else os.path.basename(os.path.dirname(file_path))
-        institution_name = harvester_settings['repository_name']
-
-        # Get the collection name. If we hit the OAI-PMH repository, cache the response in memory.
-        if base_url in self.oai_pmh_cache:
-            if collection_key:
-                if collection_key in self.oai_pmh_cache[base_url]:
-                    collection_name = self.oai_pmh_cache[base_url][collection_key]
-                else:
-                    oai_pmh_sets = self.get_oai_pmh_sets(base_url)
-                    if collection_key in oai_pmh_sets:
-                        collection_name = oai_pmh_sets[collection_key]
-                        self.oai_pmh_cache[base_url] = oai_pmh_sets
-                    else:
-                        raise IndexerError('OAI-PMH repository "{}" does not contain a set with setSpec "{}"'.format(base_url, collection_key))
-            else:
-                collection_name = collection_key
-        else:
-            oai_pmh_sets = self.get_oai_pmh_sets(base_url)
-            if collection_key:
-                if collection_key in oai_pmh_sets:
-                    collection_name = oai_pmh_sets[collection_key]
-                    self.oai_pmh_cache[base_url] = oai_pmh_sets
-                else:
-                    raise IndexerError('OAI-PMH repository "{}" does not contain a set with setSpec "{}"'.format(base_url, collection_key))
-            else:
-                collection_name = collection_key
+        identifier, institution_key, institution_name, collection_key, collection_name = self.get_key_record_metadata(file_object.name)
 
         if self.args['dry_run']:
             s3_domain_name = 'example.com'
@@ -370,6 +321,94 @@ class Indexer(object):
             self.config['metadata']['dublin_core']['thumbnail_field_patterns'],
             s3_domain_name
         )
+
+    def get_key_record_metadata(self, file_path: str):
+        # Get all we can from the filename.
+        identifier = urllib.parse.unquote(os.path.splitext(os.path.basename(file_path))[0])
+
+        # Whether the record belongs to a set.
+        belongs_to_set = True
+
+        # The harvester settings key will tell us how to get the other metadata.
+        try:
+            potential_harvester_settings_key = self.get_harvester_settings_key(os.path.dirname(file_path))
+            potential_harvester_settings_serialized_encoded = self.harvester_settings.get(potential_harvester_settings_key.encode())
+
+            # Keep track of keys that we tried, but failed.
+            tried_keys = []
+
+            if potential_harvester_settings_serialized_encoded:
+                # settings key represents an individual collection
+                harvester_settings_key = potential_harvester_settings_key
+                harvester_settings_serialized_encoded = potential_harvester_settings_serialized_encoded
+            else:
+                tried_keys.append(potential_harvester_settings_key)
+
+                potential_harvester_settings_key = self.get_harvester_settings_key(os.path.dirname(os.path.dirname(file_path)))
+                potential_harvester_settings_serialized_encoded = self.harvester_settings.get(potential_harvester_settings_key.encode())
+
+                if potential_harvester_settings_serialized_encoded:
+                    # settings key represents an entire repository
+                    harvester_settings_key = potential_harvester_settings_key
+                    harvester_settings_serialized_encoded = potential_harvester_settings_serialized_encoded
+
+                    if not harvester_settings['set_spec']:
+                        belongs_to_set = False
+                else:
+                    # This should never happen. Harvester settings should represent all harvested files.
+                    tried_keys.append(potential_harvester_settings_key)
+                    raise IndexerError('Cannot find harvester settings in LevelDB for {}'.format(tried_keys))
+
+            harvester_settings_serialized = harvester_settings_serialized_encoded.decode()
+            harvester_settings = json.loads(harvester_settings_serialized)
+        except plyvel.Error as e:
+            # We can't go on without LevelDB.
+            raise IndexerError('Failed to GET on LevelDB: {}'.format(e))
+        except AttributeError as e:
+            # This should never happen. Harvester settings should represent all harvested files.
+            raise IndexerError('Cannot find harvester settings in LevelDB for {}'.format(harvester_settings_key))
+        except JSONDecodeError as e:
+            # This should never happen.
+            raise IndexerError('Harvester settings are not valid JSON: {}'.format(e))
+
+        # Harvester settings will always contain a base_url and repository_name
+        base_url = harvester_settings['base_url']
+        institution_name = harvester_settings['repository_name']
+
+        if belongs_to_set:
+            if harvester_settings['set_spec']:
+                # Standalone set harvest.
+                institution_key = os.path.dirname(harvester_settings_key)
+                collection_key = harvester_settings['set_spec']
+            else:
+                # Entire repository harvest.
+                institution_key = harvester_settings_key
+                collection_key = os.path.basename(harvester_settings_key)
+
+            # Get the collection name. If we hit the OAI-PMH repository, cache the response in memory.
+            if base_url in self.oai_pmh_cache:
+                if collection_key in self.oai_pmh_cache[base_url]:
+                    collection_name = self.oai_pmh_cache[base_url][collection_key]
+                else:
+                    oai_pmh_sets = self.get_oai_pmh_sets(base_url)
+                    if collection_key in oai_pmh_sets:
+                        collection_name = oai_pmh_sets[collection_key]
+                        self.oai_pmh_cache[base_url] = oai_pmh_sets
+                    else:
+                        raise IndexerError('OAI-PMH repository "{}" does not contain a set with setSpec "{}"'.format(base_url, collection_key))
+            else:
+                oai_pmh_sets = self.get_oai_pmh_sets(base_url)
+                if collection_key in oai_pmh_sets:
+                    collection_name = oai_pmh_sets[collection_key]
+                    self.oai_pmh_cache[base_url] = oai_pmh_sets
+                else:
+                    raise IndexerError('OAI-PMH repository "{}" does not contain a set with setSpec "{}"'.format(base_url, collection_key))
+        else:
+            institution_key = harvester_settings_key
+            collection_key = institution_key
+            collection_name = institution_name
+
+        return (identifier, institution_key, institution_name, collection_key, collection_name)
 
     def save_thumbnail(self, prl_solr_document: PRLSolrDocument):
         """Puts thumbnail on the local filesystem and on S3."""
