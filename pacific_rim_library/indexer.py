@@ -13,7 +13,7 @@ import os
 from queue import Queue
 import time
 import toml
-from typing import Any, Dict
+from typing import Any, Dict, List
 import urllib
 import yaml
 
@@ -282,6 +282,8 @@ class Indexer(object):
                 logging.info('%s removed from PRL', record_identifier)
             except plyvel.Error as e:
                 raise IndexerError('Failed to DELETE on LevelDB: {}'.format(e))
+            except IndexerError as e:
+                raise e
             except Exception as e:
                 raise IndexerError('Failed to remove Solr document: {}'.format(e))
         else:
@@ -482,26 +484,29 @@ class Indexer(object):
         except BotoCoreError as e:
             raise IndexerError('Failed to put thumbnail on S3: {}'.format(e.msg))
 
-    def unsave_thumbnail(self, record_identifier: str, institution_key: str, collection_key: str):
+    def unsave_thumbnail(self, record_identifier: str, institution_key: str, collection_keys: List[str]):
         """Removes thumbnail from the local filesystem and from S3."""
 
         try:
             thumbnail_s3_key = urllib.parse.quote(record_identifier, safe='')
-            filepath = os.path.join(
-                os.path.abspath(os.path.expanduser(
-                    self.config['s3']['sync']['source'])),
-                institution_key,
-                collection_key,
-                thumbnail_s3_key + guess_extension(self.s3.get_object(
-                    Bucket=self.config['s3']['sync']['destination']['s3_uri'],
-                    Key=thumbnail_s3_key)['ContentType']))
 
-            os.remove(filepath)
-            logging.debug(
-                '%s thumbnail removed from local filesystem at %s',
-                record_identifier,
-                filepath
-                )
+            # Record may belong to multiple collections
+            for collection_key in collection_keys:
+                filepath = os.path.join(
+                    os.path.abspath(os.path.expanduser(
+                        self.config['s3']['sync']['source'])),
+                    institution_key,
+                    collection_key,
+                    thumbnail_s3_key + guess_extension(self.s3.get_object(
+                        Bucket=self.config['s3']['sync']['destination']['s3_uri'],
+                        Key=thumbnail_s3_key)['ContentType']))
+
+                os.remove(filepath)
+                logging.debug(
+                    '%s thumbnail removed from local filesystem at %s',
+                    record_identifier,
+                    filepath
+                    )
 
             # TODO: clean up empty parent directories
             self.s3.delete_object(
