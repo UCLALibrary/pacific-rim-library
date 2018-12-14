@@ -399,14 +399,16 @@ class Indexer(object):
                         collection_name = oai_pmh_sets[collection_key]
                         self.oai_pmh_cache[base_url] = oai_pmh_sets
                     else:
-                        raise IndexerError('OAI-PMH repository "{}" does not contain a set with setSpec "{}"'.format(base_url, collection_key))
+                        logging.debug('OAI-PMH repository "%s" does not contain a set with setSpec "%s"', base_url, collection_key)
+                        collection_name = collection_key
             else:
                 oai_pmh_sets = self.get_oai_pmh_sets(base_url)
                 if collection_key in oai_pmh_sets:
                     collection_name = oai_pmh_sets[collection_key]
                     self.oai_pmh_cache[base_url] = oai_pmh_sets
                 else:
-                    raise IndexerError('OAI-PMH repository "{}" does not contain a set with setSpec "{}"'.format(base_url, collection_key))
+                    logging.debug('OAI-PMH repository "%s" does not contain a set with setSpec "%s"', base_url, collection_key)
+                    collection_name = collection_key
         else:
             institution_key = harvester_settings_key
             collection_key = institution_key
