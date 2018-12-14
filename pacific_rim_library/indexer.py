@@ -338,9 +338,15 @@ class Indexer(object):
             tried_keys = []
 
             if potential_harvester_settings_serialized_encoded:
-                # settings key represents an individual collection
                 harvester_settings_key = potential_harvester_settings_key
+
                 harvester_settings_serialized_encoded = potential_harvester_settings_serialized_encoded
+                harvester_settings_serialized = harvester_settings_serialized_encoded.decode()
+                harvester_settings = json.loads(harvester_settings_serialized)
+
+                if len(potential_harvester_settings_key.split('/')) is 1:
+                    # settings key represents an entire repository
+                    belongs_to_set = False
             else:
                 tried_keys.append(potential_harvester_settings_key)
 
@@ -348,19 +354,17 @@ class Indexer(object):
                 potential_harvester_settings_serialized_encoded = self.harvester_settings.get(potential_harvester_settings_key.encode())
 
                 if potential_harvester_settings_serialized_encoded:
-                    # settings key represents an entire repository
+                    # settings key represents an entire repository, and record belongs to a set
                     harvester_settings_key = potential_harvester_settings_key
-                    harvester_settings_serialized_encoded = potential_harvester_settings_serialized_encoded
 
-                    if not harvester_settings['set_spec']:
-                        belongs_to_set = False
+                    harvester_settings_serialized_encoded = potential_harvester_settings_serialized_encoded
+                    harvester_settings_serialized = harvester_settings_serialized_encoded.decode()
+                    harvester_settings = json.loads(harvester_settings_serialized)
                 else:
                     # This should never happen. Harvester settings should represent all harvested files.
                     tried_keys.append(potential_harvester_settings_key)
                     raise IndexerError('Cannot find harvester settings in LevelDB for {}'.format(tried_keys))
 
-            harvester_settings_serialized = harvester_settings_serialized_encoded.decode()
-            harvester_settings = json.loads(harvester_settings_serialized)
         except plyvel.Error as e:
             # We can't go on without LevelDB.
             raise IndexerError('Failed to GET on LevelDB: {}'.format(e))
@@ -383,7 +387,7 @@ class Indexer(object):
             else:
                 # Entire repository harvest.
                 institution_key = harvester_settings_key
-                collection_key = os.path.basename(harvester_settings_key)
+                collection_key = os.path.basename(os.path.dirname(file_path))
 
             # Get the collection name. If we hit the OAI-PMH repository, cache the response in memory.
             if base_url in self.oai_pmh_cache:
