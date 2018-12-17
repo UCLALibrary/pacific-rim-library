@@ -54,6 +54,9 @@ class PRLSolrDocument:
     def original_thumbnail_metadata(self):
         return self.original_thumbnail_metadata_prop
 
+    def discard_incorrect_thumbnail_url(self):
+        del self.pysolr_doc['thumbnail_url']
+
     def get_pysolr_doc(self):
         return self.pysolr_doc
 

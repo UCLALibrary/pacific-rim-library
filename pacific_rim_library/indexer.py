@@ -228,6 +228,10 @@ class Indexer(object):
             record_identifier = prl_solr_document.get_record_identifier()
 
             if not self.args['dry_run']:
+                if prl_solr_document.original_thumbnail_metadata():
+                    thumbnail_saved = self.save_thumbnail(prl_solr_document)
+                    if not thumbnail_saved:
+                        prl_solr_document.discard_incorrect_thumbnail_url()
                 try:
                     self.solr.add([pysolr_doc])
                     logging.debug('%s updated in Solr', record_identifier)
@@ -237,9 +241,6 @@ class Indexer(object):
                     raise IndexerError('Failed to PUT on LevelDB: {}'.format(e))
                 except Exception as e:
                     raise IndexerError('Failed to update Solr document: {}'.format(e))
-
-                if prl_solr_document.original_thumbnail_metadata() is not None:
-                    self.save_thumbnail(prl_solr_document)
 
                 logging.info('%s updated in PRL', record_identifier)
             else:
@@ -417,17 +418,24 @@ class Indexer(object):
         return (identifier, institution_key, institution_name, collection_key, collection_name)
 
     def save_thumbnail(self, prl_solr_document: PRLSolrDocument):
-        """Puts thumbnail on the local filesystem and on S3."""
+        """Puts thumbnail on the local filesystem and on S3.
 
-        self.upload_thumbnail(
-            prl_solr_document,
-            self.download_thumbnail(prl_solr_document))
-        logging.debug(
-            '%s thumbnail saved',
-            prl_solr_document.get_record_identifier())
+        Returns the Boolean value of whether or not a thumbnail was saved."""
+
+        thumbnail_path = self.download_thumbnail(prl_solr_document)
+        if thumbnail_path:
+            self.upload_thumbnail(prl_solr_document, thumbnail_path)
+            logging.debug(
+                '%s thumbnail saved',
+                prl_solr_document.get_record_identifier())
+            return True
+        else:
+            return False
 
     def download_thumbnail(self, prl_solr_document: PRLSolrDocument):
-        """Puts the thumbnail file in its place on the file system, and returns its path."""
+        """Puts the thumbnail file in its place on the file system.
+
+        Returns its path, or None if no thumbnail could be fetched."""
 
         # TODO: need better exception handling here
         # should use the same id for S3 object as is used for Solr document
@@ -467,9 +475,11 @@ class Indexer(object):
                         # No more tries left, so fail
                         msg = 'Failed to download thumbnail after {} tries: {}'.format(n_tries, str(e))
                         logging.debug(msg)
+                        return None
                 except (requests.RequestException, IOError) as e:
                     msg = 'Failed to download thumbnail: {}'.format(e)
                     logging.debug(msg)
+                    return None
         except Exception as e:
             raise IndexerError(
                 'Failed to put thumbnail on local filesystem: {}'.format(e))
