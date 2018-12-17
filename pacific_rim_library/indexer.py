@@ -12,10 +12,8 @@ from mimetypes import guess_extension
 import os
 from queue import Queue
 import time
-import toml
 from typing import Any, Dict, List
 import urllib
-import yaml
 
 import boto3
 from botocore.exceptions import BotoCoreError, ProfileNotFound
@@ -27,7 +25,9 @@ import plyvel
 from pysolr import Solr
 import requests
 from sickle import Sickle
+import toml
 from watchdog.observers import Observer
+import yaml
 
 from pacific_rim_library.configure import DEFAULTS, get_config
 from pacific_rim_library.prl_solr_document import PRLSolrDocument

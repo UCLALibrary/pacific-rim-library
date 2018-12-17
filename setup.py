@@ -26,7 +26,8 @@ REQUIRED = [
     'requests~=2.18.1',
     'sickle~=0.6.4',
     'toml~=0.10.0',
-    'watchdog~=0.9.0'
+    'watchdog~=0.9.0',
+    'PyYAML~=3.13'
 ]
 REQUIRED_SETUP = [
     'pytest-runner~=4.2',
