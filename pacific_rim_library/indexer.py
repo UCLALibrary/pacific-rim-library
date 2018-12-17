@@ -602,9 +602,9 @@ if __name__ == '__main__':
         # Ctrl-C gets us here.
         logging.info('Keyboard interrupt')
     except IndexerError as e:
-        logging.critical(e)
+        logging.critical(e, exc_info=True)
     except Exception as e:
-        logging.critical('Unexpected error: %s', e)
+        logging.critical('Unexpected error: %s', e, exc_info=True)
     finally:
         logging.info('Exiting...')
 
