@@ -263,13 +263,16 @@ class Indexer(object):
         if not self.args['dry_run']:
             try:
                 record_identifier = self.record_identifiers.get(path.encode()).decode()
-                docs = self.solr.search(
-                    'id:"{0}"'.format(record_identifier),
-                    **{'rows': 1})
-                if len(docs) != 1:
-                    raise IndexerError('Solr doesn\'t have unique IDs')
+                docs = self.solr.search('id:"{0}"'.format(record_identifier))
+                if len(docs) == 0:
+                    raise IndexerError('Document not found in Solr: {}'.format(record_identifier))
+                elif len(docs) > 1:
+                    # This should never happen. If it does, probably an issue with the schema.
+                    raise IndexerError('Solr doesn\'t have unique IDs: {} records found with identifier {}'.format(len(docs), record_identifier))
             except plyvel.Error as e:
                 raise IndexerError('Failed to GET on LevelDB: {}'.format(e))
+            except IndexerError as e:
+                raise e
             except Exception as e:
                 raise IndexerError('Failed to search for Solr document {}: {}'.format(record_identifier, e))
 
