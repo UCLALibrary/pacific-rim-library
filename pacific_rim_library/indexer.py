@@ -8,7 +8,6 @@ import json
 from json import JSONDecodeError
 import logging
 import logging.config
-from mimetypes import guess_extension
 import os
 from queue import Queue
 import time
@@ -126,7 +125,7 @@ class Indexer(object):
         for harvest_dir_prefix in self.config['filesystem']['harvest_dir_prefixes']:
             if os.path.isabs(path) and os.path.isabs(harvest_dir_prefix) or not os.path.isabs(path) and not os.path.isabs(harvest_dir_prefix):
                 common_path = os.path.commonpath([path, harvest_dir_prefix])
-                if common_path:
+                if os.path.normpath(common_path) == os.path.normpath(harvest_dir_prefix):
                     return os.path.relpath(path, common_path)
 
     def read_harvester_settings_file(self) -> Dict[str, Dict[str, str]]:
@@ -282,7 +281,7 @@ class Indexer(object):
                 self.record_identifiers.delete(path.encode())
                 for doc in docs:
                     if 'thumbnail_url' in doc:
-                        self.unsave_thumbnail(record_identifier, doc['institutionKey'], doc['collectionKey'])
+                        self.unsave_thumbnail(doc['thumbnail_url'], record_identifier, doc['institutionKey'], doc['collectionKey'])
                 logging.info('%s removed from PRL', record_identifier)
             except plyvel.Error as e:
                 raise IndexerError('Failed to DELETE on LevelDB: {}'.format(e))
@@ -441,14 +440,11 @@ class Indexer(object):
         Returns its path, or None if no thumbnail could be fetched."""
 
         # TODO: need better exception handling here
-        # should use the same id for S3 object as is used for Solr document
-        record_identifier = prl_solr_document.get_record_identifier()
+        thumbnail_s3_key = prl_solr_document.get_thumbnail_s3_key()
         try:
             filepath = os.path.join(
                 os.path.abspath(os.path.expanduser(self.config['s3']['sync']['source'])),
-                prl_solr_document.get_pysolr_doc()['institutionKey'],
-                prl_solr_document.get_pysolr_doc()['collectionKey'],
-                prl_solr_document.thumbnail_s3_key + guess_extension(prl_solr_document.original_thumbnail_metadata()['content-type'])
+                thumbnail_s3_key
                 )
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
@@ -466,7 +462,7 @@ class Indexer(object):
                             image_file.write(chunk)
                     logging.debug(
                         '%s thumbnail put on local filesystem at %s',
-                        record_identifier,
+                        thumbnail_s3_key,
                         filepath)
                     return filepath
                 except requests.Timeout as e:
@@ -493,7 +489,7 @@ class Indexer(object):
         try:
             self.s3.put_object(
                 Bucket=self.config['s3']['sync']['destination']['s3_uri'],
-                Key=prl_solr_document.thumbnail_s3_key,
+                Key=prl_solr_document.get_thumbnail_s3_key(),
                 Body=open(filepath, 'rb'),
                 ContentType=prl_solr_document.original_thumbnail_metadata()['content-type']
                 )
@@ -503,29 +499,21 @@ class Indexer(object):
         except BotoCoreError as e:
             raise IndexerError('Failed to put thumbnail on S3: {}'.format(e.msg))
 
-    def unsave_thumbnail(self, record_identifier: str, institution_key: str, collection_keys: List[str]):
+    def unsave_thumbnail(self, thumbnail_url: str, record_identifier: str, institution_key: str, collection_keys: List[str]):
         """Removes thumbnail from the local filesystem and from S3."""
 
         try:
-            thumbnail_s3_key = urllib.parse.quote(record_identifier, safe='')
-
-            # Record may belong to multiple collections
-            for collection_key in collection_keys:
-                filepath = os.path.join(
-                    os.path.abspath(os.path.expanduser(
-                        self.config['s3']['sync']['source'])),
-                    institution_key,
-                    collection_key,
-                    thumbnail_s3_key + guess_extension(self.s3.get_object(
-                        Bucket=self.config['s3']['sync']['destination']['s3_uri'],
-                        Key=thumbnail_s3_key)['ContentType']))
-
-                os.remove(filepath)
-                logging.debug(
-                    '%s thumbnail removed from local filesystem at %s',
-                    record_identifier,
-                    filepath
+            thumbnail_s3_key = os.path.relpath(urllib.parse.urlparse(urllib.parse.unquote(thumbnail_url)).path, '/')
+            filepath = os.path.join(
+                    os.path.abspath(os.path.expanduser(self.config['s3']['sync']['source'])),
+                    thumbnail_s3_key
                     )
+            os.remove(filepath)
+            logging.debug(
+                '%s thumbnail removed from local filesystem at %s',
+                record_identifier,
+                filepath
+                )
 
             # TODO: clean up empty parent directories
             self.s3.delete_object(

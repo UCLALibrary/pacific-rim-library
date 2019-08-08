@@ -4,7 +4,7 @@ import collections
 from io import TextIOWrapper
 import logging
 import logging.config
-from mimetypes import guess_type
+from mimetypes import guess_type, guess_extension
 import os
 import re
 from typing import Dict, List
@@ -161,8 +161,7 @@ class PRLSolrDocument:
         original_thumbnail_metadata_prop = self._find_thumbnail()
         if original_thumbnail_metadata_prop is not None:
             self.original_thumbnail_metadata_prop = original_thumbnail_metadata_prop
-            self.thumbnail_s3_key = urllib.parse.quote(self.get_record_identifier(), safe='')
-            doc['thumbnail_url'] = urllib.parse.urlunparse(('http', self.s3_host, urllib.parse.quote(self.thumbnail_s3_key, safe=''), '', '', ''))
+            doc['thumbnail_url'] = urllib.parse.urlunparse(('http', self.s3_host, urllib.parse.quote(self.get_thumbnail_s3_key()), '', '', ''))
     
     def _find_thumbnail(self):
         """Return the URL and Content-Type of the thumbnail for a Dublin Core record.
@@ -189,6 +188,7 @@ class PRLSolrDocument:
                                         logging.debug('Found image at {}'.format(possible_url))
                                         return {
                                             'url': possible_url,
+                                            'extension': os.path.splitext(urllib.parse.urlparse(possible_url).path)[1],
                                             'content-type': guessed_type
                                         }
                                     else:
@@ -233,3 +233,20 @@ class PRLSolrDocument:
         """
         components = identifier.split(sep=':', maxsplit=2)
         return components[0] == 'oai' and len(components) == 3
+
+    def get_thumbnail_s3_key(self):
+        return PRLSolrDocument.create_thumbnail_s3_key(
+            self.pysolr_doc['institutionKey'],
+            self.pysolr_doc['collectionKey'],
+            self.get_record_identifier(),
+            self.original_thumbnail_metadata()['extension'] or guess_extension(self.original_thumbnail_metadata()['content-type'])
+        )
+
+    @staticmethod
+    def create_thumbnail_s3_key(institution_key: str, collection_key: str, identifier: str, extension: str):
+        return '{}/{}/{}{}'.format(
+            urllib.parse.quote(institution_key, safe=''),
+            urllib.parse.quote(collection_key, safe=''),
+            urllib.parse.quote(identifier, safe=''),
+            extension
+        )
