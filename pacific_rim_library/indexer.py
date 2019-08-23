@@ -298,11 +298,26 @@ class Indexer(object):
         logging.debug('Listing sets from OAI-PMH repository %s', base_url)
         try:
             return {
-                s.setSpec: s.setName
-                for s in list(Sickle(base_url, timeout=60).ListSets())
+                'sets': {
+                    s.setSpec: s.setName
+                    for s in list(Sickle(base_url, timeout=60).ListSets())
+                }
             }
         except requests.RequestException as e:
             raise IndexerError('Failed to list sets from OAI-PMH repository {}: {}'.format(base_url, e))
+
+    def get_oai_pmh_metadata(self, base_url: str) -> Dict[str, str]:
+        """Returns a dictionary containing top-level metadata of an OAI-PMH repository."""
+
+        logging.debug('Getting repository metadata from OAI-PMH repository %s', base_url)
+        try:
+            repository_metadata = Sickle(base_url, timeout=60).Identify()
+            return {
+                'repositoryIdentifier': repository_metadata.repositoryIdentifier,
+                'repositoryName': repository_metadata.repositoryName
+            }
+        except requests.RequestException as e:
+            raise IndexerError('Failed to get repository metadata from OAI-PMH repository {}: {}'.format(base_url, e))
 
     def get_solr_document(self, file_object: TextIOWrapper) -> PRLSolrDocument:
         """Builds a Solr document for PRL."""
@@ -394,28 +409,37 @@ class Indexer(object):
 
             # Get the collection name. If we hit the OAI-PMH repository, cache the response in memory.
             if base_url in self.oai_pmh_cache:
-                if collection_key in self.oai_pmh_cache[base_url]:
-                    collection_name = self.oai_pmh_cache[base_url][collection_key]
+                # TODO: check if the sets key exists
+                if collection_key in self.oai_pmh_cache[base_url]['sets']:
+                    collection_name = self.oai_pmh_cache[base_url]['sets'][collection_key]
                 else:
                     oai_pmh_sets = self.get_oai_pmh_sets(base_url)
-                    if collection_key in oai_pmh_sets:
-                        collection_name = oai_pmh_sets[collection_key]
+                    if collection_key in oai_pmh_sets['sets']:
+                        collection_name = oai_pmh_sets['sets'][collection_key]
                         self.oai_pmh_cache[base_url] = oai_pmh_sets
                     else:
                         logging.debug('OAI-PMH repository "%s" does not contain a set with setSpec "%s"', base_url, collection_key)
                         collection_name = collection_key
             else:
                 oai_pmh_sets = self.get_oai_pmh_sets(base_url)
-                if collection_key in oai_pmh_sets:
-                    collection_name = oai_pmh_sets[collection_key]
+                if collection_key in oai_pmh_sets['sets']:
+                    collection_name = oai_pmh_sets['sets'][collection_key]
                     self.oai_pmh_cache[base_url] = oai_pmh_sets
                 else:
                     logging.debug('OAI-PMH repository "%s" does not contain a set with setSpec "%s"', base_url, collection_key)
                     collection_name = collection_key
         else:
             institution_key = harvester_settings_key
-            collection_key = institution_key
-            collection_name = institution_name
+
+            # Check the cache.
+            if base_url in self.oai_pmh_cache:
+                oai_pmh_metadata = self.oai_pmh_cache[base_url]
+            else:
+                oai_pmh_metadata = self.get_oai_pmh_metadata(base_url)
+                self.oai_pmh_cache[base_url] = oai_pmh_metadata
+
+            collection_key = oai_pmh_metadata['repositoryIdentifier']
+            collection_name = oai_pmh_metadata['repositoryName']
 
         return (identifier, institution_key, institution_name, collection_key, collection_name)
 

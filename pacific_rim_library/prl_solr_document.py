@@ -125,6 +125,7 @@ class PRLSolrDocument:
         hyperlinks = []
 
         if self.field_map is not None:
+            #for tag in self.soup.find('dc').find_all(re.compile('identifier(?:\.(?:url)|(?:relation))?')):
             for tag in self.soup.find('dc').find_all('identifier'):
                 value = tag.string
                 if value is not None:
