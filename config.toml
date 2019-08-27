@@ -43,10 +43,18 @@ path = "CHANGE ME"
 [metadata]
 # Regular expressions to match against fields to search for thumbnail URLs.
 dublin_core.thumbnail_field_patterns = [
+  "description",
   "identifier\\.thumbnail",
   "identifier",
-  "identifier\\.*",
+  "identifier\\.(?:.+)",
 ]
+
+# Regular expressions to match against fields to search for external link URLs.
+dublin_core.external_link_field_patterns = [
+  "identifier",
+  "identifier\\.(?:.+)",
+]
+
 # Mapping from Dublin Core field names to Solr field names.
 [metadata.dublin_core.solr_mapping]
 title = "title_keyword"
