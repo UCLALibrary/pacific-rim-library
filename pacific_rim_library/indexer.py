@@ -336,6 +336,7 @@ class Indexer(object):
             collection_key,
             collection_name,
             self.config['metadata']['dublin_core']['solr_mapping'],
+            self.config['metadata']['dublin_core']['external_link_field_patterns'],
             self.config['metadata']['dublin_core']['thumbnail_field_patterns'],
             s3_domain_name
         )

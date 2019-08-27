@@ -25,10 +25,12 @@ class PRLSolrDocument:
     def __init__(self, file_object: TextIOWrapper, identifier: str,
                  institution_key: str, institution_name: str,
                  collection_key: str, collection_name: str, field_map: Dict[str, str],
+                 external_link_field_patterns: List[str],
                  thumbnail_field_patterns: List[str], s3_host: str):
         """Generates a PRL Solr document."""
 
         self.field_map = field_map
+        self.external_link_field_patterns = external_link_field_patterns
         self.thumbnail_field_patterns = thumbnail_field_patterns
         self.s3_host = s3_host
         self.original_thumbnail_metadata_prop = None
@@ -125,17 +127,17 @@ class PRLSolrDocument:
         hyperlinks = []
 
         if self.field_map is not None:
-            #for tag in self.soup.find('dc').find_all(re.compile('identifier(?:\.(?:url)|(?:relation))?')):
-            for tag in self.soup.find('dc').find_all('identifier'):
-                value = tag.string
-                if value is not None:
-                    try:
-                        URLValidator()(value)
-                        if os.path.splitext(urllib.parse.urlparse(value).path)[1] not in ['.jpg', '.jpeg', '.png', '.tif', '.tiff']:
-                            hyperlinks.append(value)
-                    except ValidationError:
-                        # Continue loop
-                        pass
+            for bs_filter in self.external_link_field_patterns:
+                for tag in self.soup.find('dc').find_all(re.compile(bs_filter)):
+                    value = tag.string
+                    if value is not None:
+                        try:
+                            URLValidator()(value)
+                            if os.path.splitext(urllib.parse.urlparse(value).path)[1] not in ['.jpg', '.jpeg', '.png', '.tif', '.tiff']:
+                                hyperlinks.append(value)
+                        except ValidationError:
+                            # Continue loop
+                            pass
 
         if hyperlinks:
             identifier = self.get_record_identifier()
