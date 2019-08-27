@@ -169,9 +169,9 @@ class PRLSolrDocument:
         If none exists, return None.
         """
         checked_urls = []
-        for f in self.thumbnail_field_patterns:
+        for bs_filter in self.thumbnail_field_patterns:
             # search for tags that match the filter (can be regex or string, see )
-            tags = self.soup.find_all(f)
+            tags = self.soup.find_all(re.compile(bs_filter))
 
             for tag in tags:
                 value = tag.string
