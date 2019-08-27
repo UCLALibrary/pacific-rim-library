@@ -145,7 +145,7 @@ class PRLSolrDocument:
                 ident = identifier
 
             heuristics = {
-                'host': 'http://example.edu',
+                'host': self.pysolr_doc['institutionKey'],
                 'identifier': ident
             }
             hrhs = HyperlinkRelevanceHeuristicSorter()
