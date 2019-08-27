@@ -10,6 +10,7 @@ import logging
 import logging.config
 import os
 from queue import Queue
+import re
 import time
 from typing import Any, Dict, List
 import urllib
@@ -481,23 +482,26 @@ class Indexer(object):
                 )
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
+            original_thumbnail_url = prl_solr_document.original_thumbnail_metadata()['url']
             n_tries = 3
             for try_i in range(1, n_tries + 1):
                 try:
-                    response = requests.get(
-                        prl_solr_document.original_thumbnail_metadata()['url'],
-                        timeout=30,
-                        stream=True)
+                    response = requests.get(original_thumbnail_url, timeout=30, stream=True)
                     # Fail on 4xx or 5xx
                     response.raise_for_status()
-                    with open(filepath, 'wb') as image_file:
-                        for chunk in response.iter_content(chunk_size=1024):
-                            image_file.write(chunk)
-                    logging.debug(
-                        '%s thumbnail put on local filesystem at %s',
-                        thumbnail_s3_key,
-                        filepath)
-                    return filepath
+                    # Make sure the Content-Type is what we expect. Some servers discriminate against robots.
+                    if re.match(re.compile('image/.+'), response.headers.get('Content-Type')):
+                        with open(filepath, 'wb') as image_file:
+                            for chunk in response.iter_content(chunk_size=1024):
+                                image_file.write(chunk)
+                        logging.debug(
+                            '%s thumbnail put on local filesystem at %s',
+                            thumbnail_s3_key,
+                            filepath)
+                        return filepath
+                    else:
+                        logging.debug('Robots cannot access %s', original_thumbnail_url)
+                        return None
                 except requests.Timeout as e:
                     if try_i < n_tries:
                         msg = 'Thumbnail download timed out, retrying...'
