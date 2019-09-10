@@ -13,12 +13,12 @@ handlers:
     class: logging.FileHandler
     formatter: pacific_rim_library
     level: INFO
-    filename: pacific_rim_library.log
+    filename: /var/log/prl/pacific_rim_library.log
   file_debug:
     class: logging.handlers.RotatingFileHandler
     formatter: pacific_rim_library
     level: DEBUG
-    filename: pacific_rim_library.debug.log
+    filename: /var/log/prl/pacific_rim_library.debug.log
     maxBytes: 1048576
     backupCount: 7
 root:
