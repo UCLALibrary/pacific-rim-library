@@ -18,8 +18,6 @@ import urllib
 import boto3
 from botocore.exceptions import BotoCoreError, ProfileNotFound
 from bs4 import BeautifulSoup
-from django.core.validators import URLValidator
-from django.core.exceptions import ValidationError
 from javaobj import JavaObjectUnmarshaller
 import plyvel
 from pysolr import Solr
@@ -79,13 +77,22 @@ class Indexer(object):
 
         try:
             solr_base_url = self.config['solr']['base_url']
-            URLValidator()(solr_base_url)
+
+            # Make sure we can connect to Solr.
+            def solr_ping(base_url):
+                """Raises an error if we can't connect to Solr."""
+                o = urllib.parse.urlsplit(solr_base_url)
+                ping_url = urllib.parse.urlunsplit(o[:2] + (os.path.join(o.path, 'admin/ping'),) + o[3:])
+                requests.get(ping_url).raise_for_status()
+
+            solr_ping(solr_base_url)
+
             self.solr = Solr(solr_base_url, always_commit=True)
             self.s3 = boto3.Session(
                 profile_name=self.config['s3']['configure']['profile_name']
             ).client('s3')
-        except ValidationError:
-            raise IndexerError('Solr base URL {} is invalid'.format(solr_base_url))
+        except requests.exceptions.RequestException as e:
+            raise IndexerError('Connection failed: {}'.format(e))
         except ProfileNotFound as e:
             raise IndexerError('Failed to initialize S3 session: {}'.format(repr(e)))
 
