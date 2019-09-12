@@ -36,8 +36,8 @@ source.files.scheduled_harvests = "SCHEDULED_5fHARVESTS"
 # Java class that contains metadata for each jOAI scheduled harvest.
 source.classes.scheduled_harvest = "org.dlese.dpc.oai.harvester.structs.ScheduledHarvest"
 
-[leveldb.record_identifiers]
-# Where to create the record_identifiers LevelDB instance.
+[leveldb.record_sets]
+# Where to create the record_sets LevelDB instance.
 path = "CHANGE ME"
 
 [metadata]

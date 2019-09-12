@@ -42,8 +42,8 @@ class Indexer(object):
 
         self.solr = None
         self.s3 = None
-        self.record_identifiers = None
         self.harvester_settings = None
+        self.record_sets = None
 
         self.args = args
         self.config = config
@@ -60,12 +60,12 @@ class Indexer(object):
         """Initializes the interfaces for all third-party services instantiated by this module."""
 
         try:
-            self.record_identifiers = plyvel.DB(
-                os.path.expanduser(self.config['leveldb']['record_identifiers']['path']),
-                create_if_missing=True
-            )
             self.harvester_settings = plyvel.DB(
                 os.path.expanduser(self.config['leveldb']['harvester_settings']['path']),
+                create_if_missing=True
+            )
+            self.record_sets = plyvel.DB(
+                os.path.expanduser(self.config['leveldb']['record_sets']['path']),
                 create_if_missing=True
             )
             self.set_harvester_settings()
@@ -107,8 +107,8 @@ class Indexer(object):
         """Closes connections with all third-party services instantiated by this module."""
 
         try:
-            self.record_identifiers.close()
             self.harvester_settings.close()
+            self.record_sets.close()
         except plyvel.Error as e:
             raise IndexerError('Failed to close the connection to LevelDB: {}'.format(e))
 
@@ -229,77 +229,126 @@ class Indexer(object):
         
         Responds to IndexerEventHandler.on_modified filesystem event.
         """
+        if not self.args['dry_run']:
 
-        try:
+            record_metadata = self.get_key_record_metadata(path)
+            record_identifier = record_metadata[0]
+            record_sets_serialized_encoded = self.record_sets.get(record_identifier.encode())
+
             # Generate a Solr document from the metadata record.
             with open(path, 'r') as record_file:
                 prl_solr_document = self.get_solr_document(record_file)
+
+            # If there is a thumbnail, save it to the system.
+            if prl_solr_document.original_thumbnail_metadata():
+                thumbnail_saved = self.save_thumbnail(prl_solr_document)
+                if not thumbnail_saved:
+                    prl_solr_document.discard_incorrect_thumbnail_url()
+
+            record_identifier = prl_solr_document.id
+
+            # Determine whether or not this is a create or an update.
+            if record_sets_serialized_encoded is None:
+                action = 'create'
+            else:
+                action = 'update'
+                # If we've processed this record in the past, make sure we don't completely overwrite the collectionKey or collectionName fields.
+                # We save these locally in LevelDB.
+                record_sets = json.loads(record_sets_serialized_encoded.decode())
+                prl_solr_document.complete_collection_list(record_sets['collectionKey'], record_sets['collectionName'])
+
             pysolr_doc = prl_solr_document.get_pysolr_doc()
-            record_identifier = prl_solr_document.get_record_identifier()
+            collection_key = pysolr_doc['collectionKey']
+            collection_name = pysolr_doc['collectionName']
 
-            if not self.args['dry_run']:
-                if prl_solr_document.original_thumbnail_metadata():
-                    thumbnail_saved = self.save_thumbnail(prl_solr_document)
-                    if not thumbnail_saved:
-                        prl_solr_document.discard_incorrect_thumbnail_url()
-                try:
-                    self.solr.add([pysolr_doc])
-                    logging.debug('%s updated in Solr', record_identifier)
-                    self.record_identifiers.put(path.encode(), record_identifier.encode())
-                except plyvel.Error as e:
-                    self.solr.delete(id=record_identifier)
-                    raise IndexerError('Failed to PUT on LevelDB: {}'.format(e))
-                except Exception as e:
-                    raise IndexerError('Failed to update Solr document: {}'.format(e))
+            try:
+                self.solr.add([pysolr_doc], overwrite=True)
+                logging.debug('%s %sd in Solr', record_identifier, action)
 
-                logging.info('%s updated in PRL', record_identifier)
-            else:
-                logging.info('DRY-RUN: %s updated in PRL', record_identifier)
-        except IndexerError as e:
-            if self.args['dry_run']:
-                logging.error(
-                    'DRY-RUN: %s would not be updated in PRL: %s',
-                    record_identifier,
-                    e)
-            else:
-                raise e
+                self.record_sets.put(
+                    record_identifier.encode(),
+                    json.dumps({'collectionKey': collection_key, 'collectionName': collection_name}).encode()
+                    )
+                logging.info('%s %sd in PRL', record_identifier, action)
+            except plyvel.Error as e:
+                self.solr.delete(id=record_identifier)
+                raise IndexerError('Failed to PUT on LevelDB: {}'.format(e))
+            except Exception as e:
+                raise IndexerError('Failed to update Solr document: {}'.format(e))
+        else:
+            logging.info('DRY-RUN: %s updated in PRL', record_identifier)
 
     def remove_record(self, path: str):
         """Removes a metadata record from PRL.
         
         Responds to IndexerEventHandler.on_deleted filesystem event.
         """
-
         if not self.args['dry_run']:
             try:
-                record_identifier = self.record_identifiers.get(path.encode()).decode()
-                docs = self.solr.search('id:"{0}"'.format(record_identifier))
-                if len(docs) == 0:
-                    raise IndexerError('Document not found in Solr: {}'.format(record_identifier))
-                elif len(docs) > 1:
-                    # This should never happen. If it does, probably an issue with the schema.
-                    raise IndexerError('Solr doesn\'t have unique IDs: {} records found with identifier {}'.format(len(docs), record_identifier))
+                record_metadata = self.get_key_record_metadata(path)
+                record_identifier = record_metadata[0]
+                # We're certain that our serialized JSON is valid.
+                record_sets = json.loads(self.record_sets.get(record_identifier.encode()).decode())
             except plyvel.Error as e:
                 raise IndexerError('Failed to GET on LevelDB: {}'.format(e))
-            except IndexerError as e:
-                raise e
-            except Exception as e:
-                raise IndexerError('Failed to search for Solr document {}: {}'.format(record_identifier, e))
 
-            try:
-                self.solr.delete(id=record_identifier)
+            # Either remove the record from the system, or update it.
+            if len(record_sets['collectionKey']) == 1:
+                # Remove the thumbnail if there is one.
+                try:
+                    pysolr_doc = self.solr.search('id:"{0}"'.format(record_identifier)).docs[0]
+                except Exception as e:
+                    raise IndexerError('Failed to GET {} from Solr: {}'.format(record_identifier, e))
+                if 'thumbnail_url' in pysolr_doc:
+                    self.unsave_thumbnail(pysolr_doc['thumbnail_url'], record_identifier)
+
+                # Remove the document from Solr.
+                try:
+                    self.solr.delete(id=record_identifier)
+                except Exception as e:
+                    raise IndexerError('Failed to DELETE {} from Solr: {}'.format(record_identifier, e))
                 logging.debug('%s removed from Solr', record_identifier)
-                self.record_identifiers.delete(path.encode())
-                for doc in docs:
-                    if 'thumbnail_url' in doc:
-                        self.unsave_thumbnail(doc['thumbnail_url'], record_identifier, doc['institutionKey'], doc['collectionKey'])
+
+                try:
+                    self.record_sets.delete(record_identifier.encode())
+                except plyvel.Error as e:
+                    raise IndexerError('Failed to DELETE on LevelDB: {}'.format(e))
+
                 logging.info('%s removed from PRL', record_identifier)
-            except plyvel.Error as e:
-                raise IndexerError('Failed to DELETE on LevelDB: {}'.format(e))
-            except IndexerError as e:
-                raise e
-            except Exception as e:
-                raise IndexerError('Failed to remove Solr document: {}'.format(e))
+            else:
+                # Update the list of collections that the record belongs to.
+                # This is the case when a record belongs to more than one OAI-PMH set.
+                collection_key = list(filter(lambda x: x != record_metadata[3], record_sets['collectionKey']))
+                collection_name = list(filter(lambda x: x != record_metadata[4], record_sets['collectionName']))
+
+                pysolr_doc = {
+                    'id': record_identifier,
+                    'collectionKey': collection_key,
+                    'collectionName': collection_name
+                }
+
+                try:
+                    self.solr.add(
+                        [pysolr_doc],
+                        fieldUpdates={
+                            'collectionKey': 'set',
+                            'collectionName': 'set'
+                        },
+                        overwrite=True
+                        )
+                except Exception as e:
+                    raise IndexerError('Failed to POST {} on Solr: {}'.format(record_identifier, e))
+                logging.debug('%s updated in Solr (removed from collection %s)', record_identifier, record_metadata[3])
+
+                try:
+                    self.record_sets.put(
+                        record_identifier.encode(),
+                        json.dumps({'collectionKey': collection_key, 'collectionName': collection_name}).encode()
+                        )
+                except plyvel.Error as e:
+                    raise IndexerError('Failed to PUT on LevelDB: {}'.format(e))
+
+                logging.info('%s updated in PRL (removed from collection %s)', record_identifier, record_metadata[3])
         else:
             logging.info('DRY-RUN: Removed %s', path)
 
@@ -543,7 +592,7 @@ class Indexer(object):
         except BotoCoreError as e:
             raise IndexerError('Failed to put thumbnail on S3: {}'.format(e.msg))
 
-    def unsave_thumbnail(self, thumbnail_url: str, record_identifier: str, institution_key: str, collection_keys: List[str]):
+    def unsave_thumbnail(self, thumbnail_url: str, record_identifier: str):
         """Removes thumbnail from the local filesystem and from S3."""
 
         try:

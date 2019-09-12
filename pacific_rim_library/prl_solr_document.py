@@ -40,8 +40,8 @@ class PRLSolrDocument:
         self.pysolr_doc = {}
         self.pysolr_doc.update({
             'id': self.id,
-            'collectionKey': collection_key,
-            'collectionName': collection_name,
+            'collectionKey': [collection_key],
+            'collectionName': [collection_name],
             'institutionKey': institution_key,
             'institutionName': institution_name
         })
@@ -58,6 +58,24 @@ class PRLSolrDocument:
 
     def discard_incorrect_thumbnail_url(self):
         del self.pysolr_doc['thumbnail_url']
+
+    def complete_collection_list(self, collection_key_list: List[str], collection_name_list: List[str]):
+        """Completes the list of collections for this record.
+
+        Modifies the values under 'collectionKey' and 'collectionName' if the
+        local 'record_sets' LevelDB instance contains other sets (which implies
+        that those sets were saved in the previous version of this record's
+        Solr document).
+        """
+        current_collection_key_list = self.pysolr_doc['collectionKey']
+        current_collection_name_list = self.pysolr_doc['collectionName']
+
+        if current_collection_key_list[0] not in collection_key_list:
+            self.pysolr_doc['collectionKey'] = collection_key_list + current_collection_key_list
+            self.pysolr_doc['collectionName'] = collection_name_list + current_collection_name_list
+        else:
+            self.pysolr_doc['collectionKey'] = collection_key_list
+            self.pysolr_doc['collectionName'] = collection_name_list
 
     def get_pysolr_doc(self):
         return self.pysolr_doc
@@ -240,7 +258,7 @@ class PRLSolrDocument:
     def get_thumbnail_s3_key(self):
         return PRLSolrDocument.create_thumbnail_s3_key(
             self.pysolr_doc['institutionKey'],
-            self.pysolr_doc['collectionKey'],
+            self.pysolr_doc['collectionKey'][0],
             self.get_record_identifier(),
             self.original_thumbnail_metadata()['extension'] or guess_extension(self.original_thumbnail_metadata()['content-type'])
         )
