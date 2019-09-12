@@ -23,11 +23,11 @@ REQUIRED = [
     'lxml~=3.8.0',
     'plyvel~=1.0.5',
     'pysolr~=3.8.0',
-    'requests~=2.18.1',
+    'requests~=2.22.0',
     'sickle~=0.6.4',
     'toml~=0.10.0',
     'watchdog~=0.9.0',
-    'PyYAML~=3.13'
+    'PyYAML~=5.1.2'
 ]
 REQUIRED_SETUP = [
     'pytest-runner~=4.2',
