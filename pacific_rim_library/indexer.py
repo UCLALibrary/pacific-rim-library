@@ -236,7 +236,7 @@ class Indexer(object):
             record_sets_serialized_encoded = self.record_sets.get(record_identifier.encode())
 
             # Generate a Solr document from the metadata record.
-            with open(path, 'r') as record_file:
+            with open(path, 'r', encoding='utf-8') as record_file:
                 prl_solr_document = self.get_solr_document(record_file)
 
             # If there is a thumbnail, save it to the system.
