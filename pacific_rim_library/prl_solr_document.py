@@ -35,7 +35,7 @@ class PRLSolrDocument:
         self.s3_host = s3_host
         self.original_thumbnail_metadata_prop = None
 
-        self.soup = BeautifulSoup(file_object, 'lxml-xml')
+        self.soup = BeautifulSoup(file_object, 'lxml-xml', from_encoding='utf-8')
         self.id = identifier
         self.pysolr_doc = {}
         self.pysolr_doc.update({
