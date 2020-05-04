@@ -99,6 +99,9 @@ class DateCleanerAndFaceter:
             self.regexes['match']['year-mm'],
             self.regexes['match']['year-mm'])
 
+        # PRRLA-139
+        self.regexes['match']['yyyy-dd-mm'] = r'^[12]\d{3}-[0123]\d-[01]\d$'
+
         self.regexes['match']['dd-mon-year-time'] = r'{}\s+{}\s+{}(?:\.\s+{})?'.format(
             self.regexes['match']['dd'],
             self.regexes['match']['mon'],
@@ -112,7 +115,8 @@ class DateCleanerAndFaceter:
             self.regexes['match']['suffix'])
 
         # order of alternate patterns is important
-        self.regexes['match']['date'] = r'(?:({})|({})|({})|({})|({}))'.format(
+        self.regexes['match']['date'] = r'(?:({})|({})|({})|({})|({})|({}))'.format(
+            self.regexes['match']['yyyy-dd-mm'],
             self.regexes['match']['century-plus-suffix'],
             self.regexes['match']['year-year'],
             self.regexes['match']['dd-mon-year-time'],
@@ -194,10 +198,13 @@ class DateCleanerAndFaceter:
         years = set()
         try:
             if m[0] != '':
+                # yyyy-dd-mm
+                years = int(m[0][0:4])
+            elif m[1] != '':
                 # year-range derived from a century
-                century = int(re.match(re.compile('\\d+'), m[0]).group(0))
+                century = int(re.match(re.compile('\\d+'), m[1]).group(0))
 
-                match = re.compile(self.regexes['capture']['century-plus-suffix']).match(m[0])
+                match = re.compile(self.regexes['capture']['century-plus-suffix']).match(m[1])
                 suffix = match.group(2)
                 if suffix:
                     if re.compile(self.regexes['match']['suffix-bce']).match(suffix) is not None:
@@ -206,14 +213,14 @@ class DateCleanerAndFaceter:
                         years = (100 * (century - 1), 100 * (century - 1) + 99)
                 else:
                     years = (100 * (century - 1), 100 * (century - 1) + 99)
-            elif m[1] != '':
+            elif m[2] != '':
                 # explicit year-range
 
                 # FIXME: spaghetti code, but it works!
                 range_of_stuff = []
                 i = 0
                 first_none = None
-                for y in re.sub(self.regexes['substitution']['year-year-splitter'], r'\1>|<\2', m[1]).split('>|<'):
+                for y in re.sub(self.regexes['substitution']['year-year-splitter'], r'\1>|<\2', m[2]).split('>|<'):
                     # get rid of whitespace
                     y = y.strip()
                     match = re.compile(self.regexes['capture']['year']).match(y)
@@ -239,13 +246,13 @@ class DateCleanerAndFaceter:
                         range_of_stuff[0] = -1 * range_of_stuff[0]
 
                 years = (range_of_stuff[0], range_of_stuff[1])
-            elif m[2] != '':
-                # extract single year
-                prep = re.sub(self.regexes['substitution']['dd-mon-year-time'], r'\1', m[2]).strip()
-                years = int(prep)
             elif m[3] != '':
+                # extract single year
+                prep = re.sub(self.regexes['substitution']['dd-mon-year-time'], r'\1', m[3]).strip()
+                years = int(prep)
+            elif m[4] != '':
                 # year with unknown ones
-                y = m[3].strip()
+                y = m[4].strip()
                 match = re.compile(r'[1-9]\d{3}').match(y)
                 if match is None:
                     years = int(self._resolve_unknown_ones(y))
@@ -253,9 +260,9 @@ class DateCleanerAndFaceter:
                 else:
                     years = int(match.group(0))
 
-            elif m[4] != '':
+            elif m[5] != '':
                 # plain old year
-                match = re.compile(self.regexes['capture']['year']).match(m[4])
+                match = re.compile(self.regexes['capture']['year']).match(m[5])
                 suffix = match.group(2) or match.group(4)
                 if suffix:
                     if re.compile(self.regexes['match']['suffix-bce']).match(suffix) is not None:

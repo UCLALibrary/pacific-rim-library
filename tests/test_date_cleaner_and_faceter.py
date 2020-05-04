@@ -55,7 +55,10 @@ def test_date_cleaner_and_faceter(dcaf):
         ('1600 BC - 1046 BC', set(range(-1600, -1050 + 1, 10))),
         ('1600 BC-1046 BC', set(range(-1600, -1050 + 1, 10))),
         ('Notamonth 11 (1968)', {1960}),
-        ('Notamonth 46 (1968)', {1960})
+        ('Notamonth 46 (1968)', {1960}),
+        ('2012-29-02', {2010}),
+        ('1750-01-01', {1750}),
+        ('1800-31-12', {1800})
     ]
 
     for date in dates:
