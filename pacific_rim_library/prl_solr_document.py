@@ -284,7 +284,7 @@ class PRLSolrDocument:
             self.pysolr_doc['institutionKey'],
             self.pysolr_doc['collectionKey'][0],
             self.get_record_identifier(),
-            self.has_thumbnail_format() ? self.original_thumbnail_metadata()['extension'] : ''
+            self.original_thumbnail_metadata()['extension'] if self.has_thumbnail_format() else ''
         )
 
     @staticmethod
