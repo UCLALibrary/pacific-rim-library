@@ -192,7 +192,7 @@ class PRLSolrDocument:
             # Use the more common .jpg extension instead of the default .jpe
             filetype_extension = '.jpg'
 
-        self.original_thumbnail_metadata_prop['extension'] = '.jpg'
+        self.original_thumbnail_metadata_prop['extension'] = filetype_extension
         self.original_thumbnail_metadata_prop['content-type'] = content_type
 
     def _find_potential_thumbnail(self):
@@ -280,22 +280,11 @@ class PRLSolrDocument:
     def get_thumbnail_s3_key(self):
         """Returns the AWS S3 key to use for the thumbnail."""
 
-        # Determine the fipetype extension to use, if any
-        if self.original_thumbnail_metadata()['extension'] is not None:
-            filetype_extension = self.original_thumbnail_metadata()['extension']
-        elif self.original_thumbnail_metadata()['content-type'] is not None:
-            filetype_extension = guess_extension(self.original_thumbnail_metadata()['content-type'])
-            # Use the more common .jpg extension instead of .jpe
-            if filetype_extension == '.jpe':
-                filetype_extension = '.jpg'
-        else:
-            filetype_extension = ''
-
         return PRLSolrDocument.create_thumbnail_s3_key(
             self.pysolr_doc['institutionKey'],
             self.pysolr_doc['collectionKey'][0],
             self.get_record_identifier(),
-            filetype_extension
+            self.has_thumbnail_format() ? self.original_thumbnail_metadata()['extension'] : ''
         )
 
     @staticmethod
