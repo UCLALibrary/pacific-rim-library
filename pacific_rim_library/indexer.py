@@ -648,7 +648,7 @@ if __name__ == '__main__':
     # Set up logging.
     logging_config_filename = os.path.expanduser(os.path.join(config_dir, config['files']['logging']))
     with open(logging_config_filename, 'r') as logging_config_file:
-        logging_config = yaml.load(logging_config_file)
+        logging_config = yaml.load(logging_config_file, Loader=yaml.FullLoader)
     logging.config.dictConfig(logging_config)
 
     # Set up the Indexer.
