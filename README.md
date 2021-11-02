@@ -34,8 +34,7 @@ On delete events, it removes any traces of the record represented by the deleted
     ```
 
 1. [Ingest content into PRL via jOAI](https://docs.library.ucla.edu/display/dlp/PRL+content+ingest) and [initialize the Solr index with institution records](https://docs.library.ucla.edu/pages/viewpage.action?pageId=161622923).
-1. Restart all the containers.
-1. Access jOAI by first visiting http://localhost:8080 (it crashes otherwise), then go to http://localhost:8080/oai.
+2. Restart all the containers.
 
 ### Native
 
