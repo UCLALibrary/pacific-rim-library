@@ -168,6 +168,10 @@ class Indexer(object):
         except JSONDecodeError as e:
             # Invalid JSON.
             raise IndexerError('Cannot load scheduled harvests settings: {}'.format(e))
+        except FileNotFoundError as e:
+            # This file won't exist when no harvests have been scheduled, so it's probably fine.
+            logging.debug('Scheduled harvests settings file does not exist: {}'.format(harvester_settings_path))
+            return {}
         except UnicodeDecodeError as e:
             logging.debug('Config file is not JSON: {}'.format(e))
 
