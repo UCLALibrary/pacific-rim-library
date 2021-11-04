@@ -131,11 +131,9 @@ class Indexer(object):
         
         Intended to be called ONLY on paths representing institution/repository or collection/set directories.
         """
-        for harvest_dir_prefix in self.config['filesystem']['harvest_dir_prefixes']:
-            if os.path.isabs(path) and os.path.isabs(harvest_dir_prefix) or not os.path.isabs(path) and not os.path.isabs(harvest_dir_prefix):
-                common_path = os.path.commonpath([path, harvest_dir_prefix])
-                if os.path.normpath(common_path) == os.path.normpath(harvest_dir_prefix):
-                    return os.path.relpath(path, common_path)
+        harvest_dir_prefix = self.config['filesystem']['harvest_dir_prefix']
+
+        return os.path.relpath(path, harvest_dir_prefix)
 
     def read_harvester_settings_file(self) -> Dict[str, Dict[str, str]]:
         """Returns a dictionary representing the harvester settings.

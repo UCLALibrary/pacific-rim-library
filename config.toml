@@ -1,8 +1,6 @@
 [filesystem]
-# Possible prefixes for harvest directories.
-harvest_dir_prefixes = [
-  "CHANGE ME"
-]
+# Prefix for harvest directory.
+harvest_dir_prefix = "CHANGE ME"
 
 [s3]
 # AWS CLI configuration profile to use for S3 bucket credentials.
