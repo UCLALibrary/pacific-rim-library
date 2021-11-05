@@ -135,7 +135,7 @@ class Indexer(object):
 
         return os.path.relpath(path, harvest_dir_prefix)
 
-    def read_harvester_settings_file(self) -> Dict[str, Dict[str, str]]:
+    def read_harvester_settings_file(self, path: str) -> Dict[str, Dict[str, str]]:
         """Returns a dictionary representing the harvester settings.
 
         First, tries reading the settings as if the source file is UTF-8 encoded JSON of the following form (used for testing):
@@ -153,11 +153,9 @@ class Indexer(object):
         If that fails, tries reading the settings as if the source file is a serialized java.util.Hashtable instance from jOAI (used for production).
         """
 
-        harvester_settings_path = self.get_harvester_settings_path()
-
         try:
             # See if it's in JSON already.
-            with open(harvester_settings_path, 'r') as harvester_settings_file:
+            with open(path, 'r') as harvester_settings_file:
                 # Make sure we transform the key before storing.
                 return {
                     self.get_harvester_settings_key(key): metadata
@@ -168,13 +166,13 @@ class Indexer(object):
             raise IndexerError('Cannot load scheduled harvests settings: {}'.format(e))
         except FileNotFoundError as e:
             # This file won't exist when no harvests have been scheduled, so it's probably fine.
-            logging.debug('Scheduled harvests settings file does not exist: {}'.format(harvester_settings_path))
+            logging.debug('Scheduled harvests settings file does not exist: {}'.format(path))
             return {}
         except UnicodeDecodeError as e:
             logging.debug('Config file is not JSON: {}'.format(e))
 
             # Open the file in binary mode and try to parse it with javaobj.
-            with open(harvester_settings_path, 'rb') as harvester_settings_file:
+            with open(path, 'rb') as harvester_settings_file:
                 pobj = javaobj.loads(harvester_settings_file.read())
 
             scheduled_harvest_class = self.config['leveldb']['harvester_settings']['source']['classes']['scheduled_harvest']
@@ -199,7 +197,8 @@ class Indexer(object):
         Responds to filesystem event on that file.
         """
 
-        new_harvester_settings = self.read_harvester_settings_file()
+        harvester_settings_path = self.get_harvester_settings_path()
+        new_harvester_settings = self.read_harvester_settings_file(harvester_settings_path)
         deleted_keys = []
         updated_keys = []
 
@@ -684,7 +683,7 @@ if __name__ == '__main__':
             exceptions_queue,
             ignore_directories=True
         ),
-        os.path.dirname(indexer.get_harvester_settings_path())
+        indexer.config['leveldb']['harvester_settings']['source']['base_path']
     )
     harvestersettings_observer.start()
 
