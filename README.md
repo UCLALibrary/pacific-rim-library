@@ -15,7 +15,13 @@ On delete events, it removes any traces of the record represented by the deleted
 1. Install Docker.
 1. Download and extract this repository.
 1. Fill in the blanks in `config.toml`.
-1. Fill in the blanks in `.env` with the AWS credentials for your S3 bucket.
+1. Create a `.env` file and fill in the blanks:
+
+    ```bash
+    $ cp .env.example .env
+    $ vim .env
+    ```
+
 1. Edit `logging.yml` to configure logging as desired.
 1. Create a local `prl-solr` Docker image:
 
