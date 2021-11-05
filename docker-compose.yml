@@ -3,24 +3,32 @@ services:
   indexer:
     build:
       context: .
-      args:
-        - "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
-        - "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
-        - "AWS_REGION=${AWS_REGION}"
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_DEFAULT_REGION
+      - AWS_S3_BUCKET_NAME
+      - AWS_S3_BUCKET_DOMAIN_NAME
+      - JOAI_DATA_DIRECTORY
+      - JOAI_HARVESTER_SETTINGS_DIRECTORY
+      - LEVELDB_HARVESTER_SETTINGS_DIRECTORY
+      - LEVELDB_RECORD_SETS_DIRECTORY
+      - SOLR_INDEX_URL
+      - THUMBNAILS_DIRECTORY
     volumes:
-      - joai_config:/joai/config
-      - joai_data:/joai/data
+      - joai_data:${JOAI_DATA_DIRECTORY}
+      - joai_harvester_settings:${JOAI_HARVESTER_SETTINGS_DIRECTORY}
     networks:
       - bridge1
     depends_on:
       - solr
-    command: ["./wait-for-it.sh", "solr:8983", "--", "python", "-m", "pacific_rim_library.indexer", "-t", "/joai/data"]
+    command: ["./wait-for-it.sh", "solr:8983", "--", "python", "-m", "pacific_rim_library.indexer"]
   joai:
     image: ncar/joai-project:3.2
     restart: unless-stopped
     volumes:
-      - joai_config:/joai/config
-      - joai_data:/joai/data
+      - joai_data:${JOAI_DATA_DIRECTORY}
+      - joai_harvester_settings:${JOAI_HARVESTER_SETTINGS_DIRECTORY}
     ports:
       - 38080:8080
   solr:
@@ -30,7 +38,7 @@ services:
     networks:
       - bridge1
 volumes:
-  joai_config:
   joai_data:
+  joai_harvester_settings:
 networks:
   bridge1:

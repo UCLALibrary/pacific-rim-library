@@ -16,7 +16,7 @@ from typing import Any, Dict, List
 import urllib
 
 import boto3
-from botocore.exceptions import BotoCoreError, ProfileNotFound
+from botocore.exceptions import BotoCoreError
 from bs4 import BeautifulSoup
 import javaobj.v1 as javaobj
 import plyvel
@@ -35,10 +35,16 @@ from pacific_rim_library.harvest_settings_event_handler import HarvestSettingsEv
 from pacific_rim_library.errors import IndexerError
 
 
+# Name of the file that contains metadata about jOAI's scheduled harvests.
+JOAI_SCHEDULED_HARVESTS_FILENAME = "SCHEDULED_5fHARVESTS"
+
+# Java class that contains metadata for each jOAI scheduled harvest.
+JOAI_SCHEDULED_HARVEST_CLASSNAME = "org.dlese.dpc.oai.harvester.structs.ScheduledHarvest"
+
 class Indexer(object):
     """Indexer for PRL."""
 
-    def __init__(self, args: Dict[str, Any], config: Dict[str, Any]):
+    def __init__(self, args: Dict[str, Any]):
 
         self.solr = None
         self.s3 = None
@@ -46,7 +52,6 @@ class Indexer(object):
         self.record_sets = None
 
         self.args = args
-        self.config = config
         self.oai_pmh_cache = {}
 
     def connect(self):
@@ -61,11 +66,11 @@ class Indexer(object):
 
         try:
             self.harvester_settings = plyvel.DB(
-                os.path.expanduser(self.config['leveldb']['harvester_settings']['path']),
+                os.path.expanduser(os.environ.get('LEVELDB_HARVESTER_SETTINGS_DIRECTORY')),
                 create_if_missing=True
             )
             self.record_sets = plyvel.DB(
-                os.path.expanduser(self.config['leveldb']['record_sets']['path']),
+                os.path.expanduser(os.environ.get('LEVELDB_RECORD_SETS_DIRECTORY')),
                 create_if_missing=True
             )
             self.set_harvester_settings()
@@ -76,7 +81,7 @@ class Indexer(object):
         """Initializes the interfaces for all third-party services NOT instantiated by this module."""
 
         try:
-            solr_base_url = self.config['solr']['base_url']
+            solr_base_url = os.environ.get('SOLR_INDEX_URL')
 
             # Make sure we can connect to Solr.
             def solr_ping(base_url):
@@ -89,11 +94,13 @@ class Indexer(object):
 
             self.solr = Solr(solr_base_url, always_commit=True)
             self.s3 = boto3.Session(
-                profile_name=self.config['s3']['configure']['profile_name']
+                aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+                aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+                region_name=os.environ.get('AWS_DEFAULT_REGION')
             ).client('s3')
         except requests.exceptions.RequestException as e:
             raise IndexerError('Connection failed: {}'.format(e))
-        except ProfileNotFound as e:
+        except BotoCoreError as e:
             raise IndexerError('Failed to initialize S3 session: {}'.format(repr(e)))
 
     def disconnect(self):
@@ -122,8 +129,8 @@ class Indexer(object):
         """Gets the full path of the file containing jOAI harvester settings."""
 
         return os.path.join(os.path.expanduser(
-            self.config['leveldb']['harvester_settings']['source']['base_path']),
-            self.config['leveldb']['harvester_settings']['source']['files']['scheduled_harvests'])
+            os.environ.get('JOAI_HARVESTER_SETTINGS_DIRECTORY')),
+            JOAI_SCHEDULED_HARVESTS_FILENAME)
 
     def get_harvester_settings_key(self, path: str) -> str:
         """
@@ -131,7 +138,7 @@ class Indexer(object):
         
         Intended to be called ONLY on paths representing institution/repository or collection/set directories.
         """
-        harvest_dir_prefix = self.config['filesystem']['harvest_dir_prefix']
+        harvest_dir_prefix = os.environ.get('JOAI_DATA_DIRECTORY')
 
         return os.path.relpath(path, harvest_dir_prefix)
 
@@ -175,8 +182,7 @@ class Indexer(object):
             with open(path, 'rb') as harvester_settings_file:
                 pobj = javaobj.loads(harvester_settings_file.read())
 
-            scheduled_harvest_class = self.config['leveldb']['harvester_settings']['source']['classes']['scheduled_harvest']
-            is_scheduled_harvest = lambda h: scheduled_harvest_class in str(h)
+            is_scheduled_harvest = lambda h: JOAI_SCHEDULED_HARVEST_CLASSNAME in str(h)
 
             return {
                 self.get_harvester_settings_key(pobj_harvest.harvestDir.path): {
@@ -391,7 +397,7 @@ class Indexer(object):
         if self.args['dry_run']:
             s3_domain_name = 'example.com'
         else:
-            s3_domain_name = self.config['s3']['sync']['destination']['domain_name']
+            s3_domain_name = os.environ.get('AWS_S3_BUCKET_DOMAIN_NAME')
 
         return PRLSolrDocument(
             file_object,
@@ -531,7 +537,7 @@ class Indexer(object):
         thumbnail_s3_key = prl_solr_document.get_thumbnail_s3_key()
         try:
             filepath = os.path.join(
-                os.path.abspath(os.path.expanduser(self.config['s3']['sync']['source'])),
+                os.path.abspath(os.environ.get('THUMBNAILS_DIRECTORY')),
                 thumbnail_s3_key
                 )
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -579,7 +585,7 @@ class Indexer(object):
 
         try:
             self.s3.put_object(
-                Bucket=self.config['s3']['sync']['destination']['s3_uri'],
+                Bucket=os.environ.get('AWS_S3_BUCKET_NAME'),
                 Key=prl_solr_document.get_thumbnail_s3_key(),
                 Body=open(filepath, 'rb'),
                 ContentType=prl_solr_document.original_thumbnail_metadata()['content-type']
@@ -596,7 +602,7 @@ class Indexer(object):
         try:
             thumbnail_s3_key = os.path.relpath(urllib.parse.urlparse(urllib.parse.unquote(thumbnail_url)).path, '/')
             filepath = os.path.join(
-                    os.path.abspath(os.path.expanduser(self.config['s3']['sync']['source'])),
+                    os.path.abspath(os.environ.get('THUMBNAILS_DIRECTORY')),
                     thumbnail_s3_key
                     )
             os.remove(filepath)
@@ -608,7 +614,7 @@ class Indexer(object):
 
             # TODO: clean up empty parent directories
             self.s3.delete_object(
-                Bucket=self.config['s3']['sync']['destination']['s3_uri'],
+                Bucket=os.environ.get('AWS_S3_BUCKET_NAME'),
                 Key=thumbnail_s3_key)
             logging.debug('%s thumbnail removed from S3', record_identifier)
         except BotoCoreError as e:
@@ -631,13 +637,6 @@ if __name__ == '__main__':
         action='store_const',
         const=True,
         help='perform a trial run with no changes made')
-    parser.add_argument(
-        '-t', '--harvest-dir',
-        metavar='PATH',
-        action='store',
-        default=os.getcwd(),
-        help='directory to watch for changes '
-             '(if unspecified, defaults to current working directory)')
     indexer_args = vars(parser.parse_args())
 
     config = get_config()
@@ -650,10 +649,7 @@ if __name__ == '__main__':
     logging.config.dictConfig(logging_config)
 
     # Set up the Indexer.
-    indexer_config_filename = os.path.expanduser(os.path.join(config_dir, config['files']['app']))
-    with open(indexer_config_filename, 'r') as indexer_config_file:
-        indexer_config = toml.load(indexer_config_file)
-    indexer = Indexer(indexer_args, indexer_config)
+    indexer = Indexer(indexer_args)
     indexer.connect()
 
     # Queue for exceptions, shared across all threads.
@@ -668,7 +664,7 @@ if __name__ == '__main__':
             ignore_patterns=['*/.*/*'],
             ignore_directories=True
         ),
-        indexer_args['harvest_dir'],
+        os.environ.get('JOAI_DATA_DIRECTORY'),
         recursive=True)
     harvest_observer.start()
 
@@ -680,7 +676,7 @@ if __name__ == '__main__':
             exceptions_queue,
             ignore_directories=True
         ),
-        indexer.config['leveldb']['harvester_settings']['source']['base_path']
+        os.environ.get('JOAI_HARVESTER_SETTINGS_DIRECTORY')
     )
     harvestersettings_observer.start()
 

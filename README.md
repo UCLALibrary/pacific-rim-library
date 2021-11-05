@@ -14,8 +14,7 @@ On delete events, it removes any traces of the record represented by the deleted
 
 1. Install Docker.
 1. Download and extract this repository.
-1. Fill in the blanks in `config.toml`.
-1. Create a `.env` file and fill in the blanks:
+1. Create a `.env` file at the project root and fill in the blanks:
 
     ```bash
     $ cp .env.example .env
