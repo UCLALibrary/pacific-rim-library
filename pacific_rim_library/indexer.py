@@ -18,7 +18,7 @@ import urllib
 import boto3
 from botocore.exceptions import BotoCoreError, ProfileNotFound
 from bs4 import BeautifulSoup
-from javaobj import JavaObjectUnmarshaller
+import javaobj.v1 as javaobj
 import plyvel
 from pysolr import Solr
 import requests
@@ -175,7 +175,7 @@ class Indexer(object):
 
             # Open the file in binary mode and try to parse it with javaobj.
             with open(harvester_settings_path, 'rb') as harvester_settings_file:
-                pobj = JavaObjectUnmarshaller(harvester_settings_file).readObject()
+                pobj = javaobj.loads(harvester_settings_file.read())
 
             scheduled_harvest_class = self.config['leveldb']['harvester_settings']['source']['classes']['scheduled_harvest']
             is_scheduled_harvest = lambda h: scheduled_harvest_class in str(h)
