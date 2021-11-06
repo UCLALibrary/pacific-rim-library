@@ -12,7 +12,7 @@ On delete events, it removes any traces of the record represented by the deleted
 
 ### Docker
 
-1. Install Docker.
+1. [Install](https://docs.docker.com/compose/install/) Docker Compose v1.28.0 or later (for [service profile support](https://docs.docker.com/compose/release-notes/#1280)).
 1. Download and extract this repository.
 1. Create a `.env` file at the project root and fill in the blanks:
 
