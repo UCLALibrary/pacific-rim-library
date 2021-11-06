@@ -32,7 +32,7 @@ On delete events, it removes any traces of the record represented by the deleted
         ```
 
 1. Create a local jOAI Docker image per the instructions [here](https://github.com/NCAR/joai-project/blob/25c00ccc7d63c2c3a3c673a321be6a21bc474b78/web/docs/DOCKER_BUILD.md).
-1. Build and run the containers:
+1. Build and run the containers (**NOTE**: for local development, pass `--profile dev` on the command line _before_ `up`):
 
     ```bash
     $ docker-compose -p prl up --build
