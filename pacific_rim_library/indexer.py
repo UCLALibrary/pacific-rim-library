@@ -501,7 +501,7 @@ class Indexer(object):
         elif full_repository_harvest:
             institution_key = harvester_settings_key
             collection_key = os.path.basename(os.path.dirname(file_path))
-            collection_name = oai_pmh_metadata['sets'][set_spec]
+            collection_name = oai_pmh_metadata['sets'][collection_key]
 
         elif single_collection_repository:
             institution_key = os.path.dirname(harvester_settings_key)
