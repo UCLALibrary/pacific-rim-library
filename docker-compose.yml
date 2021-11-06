@@ -30,7 +30,7 @@ services:
       - joai_data:${JOAI_DATA_DIRECTORY}
       - joai_harvester_settings:${JOAI_HARVESTER_SETTINGS_DIRECTORY}
     ports:
-      - 38080:8080
+      - ${JOAI_PORT}:8080
   solr:
     image: prl-solr:latest
     ports:
