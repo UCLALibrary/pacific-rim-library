@@ -10,11 +10,16 @@ then
     export SOLR_HOST="solr"
 fi
 
+if [[ -z ${SOLR_PING_TIMEOUT} ]]
+then
+    export SOLR_PING_TIMEOUT=15
+fi
+
 SECONDS=0
 
 until curl -s "http://${SOLR_HOST}:${SOLR_PORT}/solr/prl/admin/ping"; do
 
-    if [[ -n ${SOLR_PING_TIMEOUT} && ${SECONDS} -ge ${SOLR_PING_TIMEOUT} ]]
+    if [[ ${SOLR_PING_TIMEOUT} -gt 0 && ${SECONDS} -ge ${SOLR_PING_TIMEOUT} ]]
     then
         >&2 echo "Solr is unavailable after ${SOLR_PING_TIMEOUT} seconds - exiting"
         exit 1
