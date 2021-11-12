@@ -26,21 +26,23 @@ services:
       - joai_harvester_settings:${JOAI_HARVESTER_SETTINGS_DIRECTORY}
     networks:
       - bridge1
+    restart: unless-stopped
     command: ["./wait-for-solr.sh", "python", "-m", "pacific_rim_library.indexer"]
   joai:
     image: ncar/joai-project:3.2
-    restart: unless-stopped
     volumes:
       - joai_data:${JOAI_DATA_DIRECTORY}
       - joai_harvester_settings:${JOAI_HARVESTER_SETTINGS_DIRECTORY}
     ports:
       - ${JOAI_PORT}:8080
+    restart: unless-stopped
   solr:
     image: prl-solr:latest
     ports:
       - ${SOLR_PORT}:8983
     networks:
       - bridge1
+    restart: unless-stopped
     profiles:
       - dev
 volumes:
