@@ -16,7 +16,7 @@ class HarvestSettingsEventHandler(PatternMatchingEventHandler):
     def on_modified(self, event):
         """Update the harvester settings."""
         try:
-            if os.path.basename(event.src_path) == self.prl_indexer.config['leveldb']['harvester_settings']['source']['files']['scheduled_harvests']:
+            if event.src_path == self.prl_indexer.get_harvester_settings_path():
                 self.prl_indexer.set_harvester_settings()
         except Exception as e:
             self.exceptions_queue.put(e)

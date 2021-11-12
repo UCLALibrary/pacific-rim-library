@@ -19,19 +19,47 @@ from pacific_rim_library.date_cleaner_and_faceter import DateCleanerAndFaceter
 from pacific_rim_library.hyperlink_relevance_heuristic_sorter import HyperlinkRelevanceHeuristicSorter
 
 
+# Mapping from Dublin Core field names to Solr field names.
+SOLR_FIELD_MAP = {
+    "title": "title_keyword",
+    "creator": "creator_keyword",
+    "subject": "subject_keyword",
+    "description": "description_keyword",
+    "publisher": "publisher_keyword",
+    "contributor": "contributor_keyword",
+    "date": "date_keyword",
+    "type": "type_keyword",
+    "format": "format_keyword",
+    "identifier": "identifier_keyword",
+    "source": "source_keyword",
+    "language": "language_keyword",
+    "relation": "relation_keyword",
+    "coverage": "coverage_keyword",
+    "rights": "rights_keyword"
+}
+
+# Regular expressions to match against fields to search for external link URLs.
+EXTERNAL_LINK_FIELD_PATTERNS = [
+  "identifier",
+  "identifier\\.(?:.+)",
+]
+
+# Regular expressions to match against fields to search for thumbnail URLs.
+THUMBNAIL_FIELD_PATTERNS = [
+  "description",
+  "identifier\\.thumbnail",
+  "identifier",
+  "identifier\\.(?:.+)",
+]
+
 class PRLSolrDocument:
     """Generates PRL Solr documents."""
 
     def __init__(self, file_object: TextIOWrapper, identifier: str,
                  institution_key: str, institution_name: str,
-                 collection_key: str, collection_name: str, field_map: Dict[str, str],
-                 external_link_field_patterns: List[str],
-                 thumbnail_field_patterns: List[str], s3_host: str):
+                 collection_key: str, collection_name: str, s3_host: str):
         """Generates a PRL Solr document."""
 
-        self.field_map = field_map
-        self.external_link_field_patterns = external_link_field_patterns
-        self.thumbnail_field_patterns = thumbnail_field_patterns
         self.s3_host = s3_host
         self.original_thumbnail_metadata_prop = None
 
@@ -96,37 +124,35 @@ class PRLSolrDocument:
     def _add_fields(self):
         doc = self.get_pysolr_doc()
 
-        if self.field_map is not None:
-            for tag in self.soup.find('dc').contents:
-                # add to doc
+        for tag in self.soup.find('dc').contents:
+            # add to doc
 
-                # ignore newlines and other whitespace in the list of tags
-                if tag.name is None:
-                    continue
+            # ignore newlines and other whitespace in the list of tags
+            if tag.name is None:
+                continue
 
-                try:
-                    # only process Dublin Core fields (no qualified DC)
-                    name = self.field_map[tag.name]
-                except KeyError as e:
-                    continue
-                else:
-                    value = tag.string
-                    if value is not None:
-                        self._add_value_possibly_duplicate_key(name, value, doc)
-                        if name == self.field_map['title'] and 'first_title' not in doc:
-                            doc['first_title'] = value
+            try:
+                # only process Dublin Core fields (no qualified DC)
+                name = SOLR_FIELD_MAP[tag.name]
+            except KeyError as e:
+                continue
+            else:
+                value = tag.string
+                if value is not None:
+                    self._add_value_possibly_duplicate_key(name, value, doc)
+                    if name == SOLR_FIELD_MAP['title'] and 'first_title' not in doc:
+                        doc['first_title'] = value
 
     def _add_decades(self):
         doc = self.get_pysolr_doc()
 
         years = set()
 
-        if self.field_map is not None:
-            for tag in self.soup.find('dc').find_all('date'):
-                value = tag.string
-                if tag.name == 'date' and value is not None:
-                    # build up a set of all the years included in the metadata
-                    years.add(value)
+        for tag in self.soup.find('dc').find_all('date'):
+            value = tag.string
+            if tag.name == 'date' and value is not None:
+                # build up a set of all the years included in the metadata
+                years.add(value)
 
         if years:
             decades = DateCleanerAndFaceter().decades(years)
@@ -144,18 +170,17 @@ class PRLSolrDocument:
         # TODO: change to set
         hyperlinks = []
 
-        if self.field_map is not None:
-            for bs_filter in self.external_link_field_patterns:
-                for tag in self.soup.find('dc').find_all(re.compile(bs_filter)):
-                    value = tag.string
-                    if value is not None:
-                        try:
-                            URLValidator()(value)
-                            if os.path.splitext(urllib.parse.urlparse(value).path)[1] not in ['.jpg', '.jpeg', '.png', '.tif', '.tiff']:
-                                hyperlinks.append(value)
-                        except ValidationError:
-                            # Continue loop
-                            pass
+        for bs_filter in EXTERNAL_LINK_FIELD_PATTERNS:
+            for tag in self.soup.find('dc').find_all(re.compile(bs_filter)):
+                value = tag.string
+                if value is not None:
+                    try:
+                        URLValidator()(value)
+                        if os.path.splitext(urllib.parse.urlparse(value).path)[1] not in ['.jpg', '.jpeg', '.png', '.tif', '.tiff']:
+                            hyperlinks.append(value)
+                    except ValidationError:
+                        # Continue loop
+                        pass
 
         if hyperlinks:
             identifier = self.get_record_identifier()
@@ -189,7 +214,7 @@ class PRLSolrDocument:
         If none exists, return None.
         """
         checked_urls = []
-        for bs_filter in self.thumbnail_field_patterns:
+        for bs_filter in THUMBNAIL_FIELD_PATTERNS:
             # search for tags that match the filter (can be regex or string, see )
             tags = self.soup.find_all(re.compile(bs_filter))
 

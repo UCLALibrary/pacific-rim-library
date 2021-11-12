@@ -12,30 +12,34 @@ On delete events, it removes any traces of the record represented by the deleted
 
 ### Docker
 
-1. Install Docker.
+1. [Install](https://docs.docker.com/compose/install/) Docker Compose v1.28.0 or later (for [service profile support](https://docs.docker.com/compose/release-notes/#1280)).
 1. Download and extract this repository.
-1. Fill in the blanks in `config.toml`.
-1. Fill in the blanks in `.env` with the AWS credentials for your S3 bucket.
+1. Create a `.env` file at the project root and fill in the blanks:
+
+    ```bash
+    $ cp .env.example .env
+    $ vim .env
+    ```
+
 1. Edit `logging.yml` to configure logging as desired.
 1. Create a local `prl-solr` Docker image:
 
-    1. Create a local `solr4` Docker image by following the  instructions at https://github.com/docker-solr/docker-solr4 (you must be authenticated to hub.docker.com)
+    1. Create a local `solr4` Docker image by following the instructions at https://github.com/docker-solr/docker-solr4 (you must be authenticated to hub.docker.com)
     1. Clone https://github.com/UCLALibrary/prrla-solr-conf and then run something like:
 
         ```bash
         $ docker image build . --tag prl-solr:latest
         ```
 
-1. Build and run the containers (this will result in a "file not found error"):
+1. Create a local jOAI Docker image per the instructions [here](https://github.com/NCAR/joai-project/blob/25c00ccc7d63c2c3a3c673a321be6a21bc474b78/web/docs/DOCKER_BUILD.md).
+1. Build and run the containers (**NOTE**: for local development, pass `--profile dev` on the command line _before_ `up`):
 
     ```bash
-    $ docker-compose -p prl build
-    $ docker-compose -p prl up
+    $ docker-compose -p prl up --build
     ```
 
-1. [Ingest content into PRL via jOAI](https://docs.library.ucla.edu/display/dlp/PRL+content+ingest) and [initialize the Solr index with institution records](https://docs.library.ucla.edu/pages/viewpage.action?pageId=161622923).
-1. Restart all the containers.
-1. Access jOAI by first visiting http://localhost:8080 (it crashes otherwise), then go to http://localhost:8080/oai.
+1. [Initialize the Solr index with institution records](https://docs.library.ucla.edu/pages/viewpage.action?pageId=161622923).
+1. [Ingest content into PRL via jOAI](https://docs.library.ucla.edu/display/dlp/PRL+content+ingest).
 
 ### Native
 

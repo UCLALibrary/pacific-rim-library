@@ -3,37 +3,44 @@ services:
   indexer:
     build:
       context: .
-      args:
-        - "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
-        - "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
-        - "AWS_REGION=${AWS_REGION}"
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_DEFAULT_REGION
+      - AWS_S3_BUCKET_NAME
+      - AWS_S3_BUCKET_DOMAIN_NAME
+      - JOAI_DATA_DIRECTORY
+      - JOAI_HARVESTER_SETTINGS_DIRECTORY
+      - LEVELDB_HARVESTER_SETTINGS_DIRECTORY
+      - LEVELDB_RECORD_SETS_DIRECTORY
+      - SOLR_HOST
+      - SOLR_PORT
+      - SOLR_PING_TIMEOUT
+      - THUMBNAILS_DIRECTORY
     volumes:
-      - harvest:/opt/prl/harvest
-      - harvester_settings:/opt/prl/harvesterSettings
+      - joai_data:${JOAI_DATA_DIRECTORY}
+      - joai_harvester_settings:${JOAI_HARVESTER_SETTINGS_DIRECTORY}
     networks:
       - bridge1
-    depends_on:
-      - solr
-    command: ["./wait-for-it.sh", "solr:8983", "--", "python", "-m", "pacific_rim_library.indexer", "-t", "/opt/prl/harvest"]
+    command: ["./wait-for-solr.sh", "python", "-m", "pacific_rim_library.indexer"]
   joai:
-    build:
-      context: .
-      dockerfile: Dockerfile-joai
-    ports:
-      - 8080:8080
+    image: ncar/joai-project:3.2
+    restart: unless-stopped
     volumes:
-      - harvest:/opt/prl/harvest
-      - harvester_settings:/opt/prl/harvesterSettings
-    networks:
-      - bridge1
+      - joai_data:${JOAI_DATA_DIRECTORY}
+      - joai_harvester_settings:${JOAI_HARVESTER_SETTINGS_DIRECTORY}
+    ports:
+      - ${JOAI_PORT}:8080
   solr:
     image: prl-solr:latest
     ports:
-      - 8983:8983
+      - ${SOLR_PORT}:8983
     networks:
       - bridge1
+    profiles:
+      - dev
 volumes:
-  harvest:
-  harvester_settings:
+  joai_data:
+  joai_harvester_settings:
 networks:
   bridge1:

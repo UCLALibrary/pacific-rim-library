@@ -14,7 +14,6 @@ DEFAULTS = {
         'dir': '~/.pacific_rim_library',
         'meta': 'pacific_rim_library.json',
         'files': {
-            'app': 'config.toml',
             'logging': 'logging.yml'
         }
     }
@@ -35,10 +34,7 @@ class Configure(object):
 
         os.makedirs(os.path.expanduser(args['config_dir']), exist_ok=True)
 
-        # Copy each config file to the config directory.
-        copyfile(
-            args['app_config'],
-            os.path.expanduser(os.path.join(args['config_dir'], args['app_config'])))
+        # Copy the logging config file to the config directory.
         copyfile(
             args['logging_config'],
             os.path.expanduser(os.path.join(args['config_dir'], args['logging_config'])))
@@ -46,7 +42,6 @@ class Configure(object):
         # Write the config to the default <config>/<meta>, so our app can find it.
         config = DEFAULTS['config'].copy()
         config['dir'] = args['config_dir']
-        config['files']['app'] = args['app_config']
         config['files']['logging'] = args['logging_config']
 
         os.makedirs(os.path.expanduser(DEFAULTS['config']['dir']), exist_ok=True)
@@ -64,12 +59,6 @@ if __name__ == '__main__':
         action='store',
         default=DEFAULTS['config']['dir'],
         help='directory for configuration files related to the indexer')
-    parser.add_argument(
-        '-a', '--app-config',
-        metavar='PATH',
-        action='store',
-        default=DEFAULTS['config']['files']['app'],
-        help='application configuration file')
     parser.add_argument(
         '-l', '--logging-config',
         metavar='PATH',
