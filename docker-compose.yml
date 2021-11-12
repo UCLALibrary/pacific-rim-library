@@ -3,6 +3,10 @@ services:
   indexer:
     build:
       context: .
+      args:
+        - LEVELDB_HARVESTER_SETTINGS_DIRECTORY
+        - LEVELDB_RECORD_SETS_DIRECTORY
+        - THUMBNAILS_DIRECTORY
     environment:
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY
