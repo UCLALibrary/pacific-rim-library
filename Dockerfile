@@ -10,8 +10,13 @@ RUN python setup.py install
 COPY logging.yml .
 RUN mkdir /var/log/prl
 
+ARG LEVELDB_HARVESTER_SETTINGS_DIRECTORY
+ARG LEVELDB_RECORD_SETS_DIRECTORY
+ARG THUMBNAILS_DIRECTORY
+
 COPY pacific_rim_library pacific_rim_library
-RUN python -m pacific_rim_library.configure
+RUN mkdir -p ${LEVELDB_HARVESTER_SETTINGS_DIRECTORY} ${LEVELDB_RECORD_SETS_DIRECTORY} ${THUMBNAILS_DIRECTORY} \
+    && python -m pacific_rim_library.configure
 
 COPY wait-for-solr.sh .
 RUN chmod +x wait-for-solr.sh
