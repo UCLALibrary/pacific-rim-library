@@ -248,9 +248,7 @@ class Indexer(object):
 
             # If there is a thumbnail, save it to the system.
             if prl_solr_document.original_thumbnail_metadata():
-                thumbnail_saved = self.save_thumbnail(prl_solr_document)
-                if not thumbnail_saved:
-                    prl_solr_document.discard_incorrect_thumbnail_url()
+                self.save_thumbnail(prl_solr_document)
 
             record_identifier = prl_solr_document.id
 
@@ -549,8 +547,9 @@ class Indexer(object):
                     response = requests.get(original_thumbnail_url, timeout=30, stream=True)
                     # Fail on 4xx or 5xx
                     response.raise_for_status()
-                    # Make sure the Content-Type is what we expect. Some servers discriminate against robots.
-                    if re.match(re.compile('image/.+'), response.headers.get('Content-Type')):
+                    # Make sure the Content-Type is what we expect and that the server doesn't disallow robots
+                    response_content_type = response.headers.get('Content-Type')
+                    if re.match(re.compile('image/.+'), response_content_type):
                         with open(filepath, 'wb') as image_file:
                             for chunk in response.iter_content(chunk_size=1024):
                                 image_file.write(chunk)
@@ -558,7 +557,22 @@ class Indexer(object):
                             '%s thumbnail put on local filesystem at %s',
                             thumbnail_s3_key,
                             filepath)
-                        return filepath
+
+                        if not prl_solr_document.has_thumbnail_format():
+                            # Determine the format and rename the image file to use the newly-determined filetype ext
+                            prl_solr_document.set_thumbnail_format(response_content_type)
+                            new_filepath = os.path.join(
+                                os.path.abspath(os.path.expanduser(os.environ.get('THUMBNAILS_DIRECTORY'))),
+                                prl_solr_document.get_thumbnail_s3_key()
+                                )
+                            logging.debug(
+                                'renaming %s -> %s',
+                                filepath,
+                                new_filepath)
+                            os.rename(filepath, new_filepath)
+                            return new_filepath
+                        else:
+                            return filepath
                     else:
                         logging.debug('Robots cannot access %s', original_thumbnail_url)
                         return None
@@ -582,6 +596,9 @@ class Indexer(object):
 
     def upload_thumbnail(self, prl_solr_document: PRLSolrDocument, filepath: str):
         """Puts the thumbnail on S3."""
+
+        # Determine a URL for the thumbnail now that we've downloaded it and know the image format
+        prl_solr_document.add_thumbnail_url()
 
         try:
             self.s3.put_object(

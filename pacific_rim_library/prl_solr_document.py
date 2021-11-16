@@ -61,7 +61,6 @@ class PRLSolrDocument:
         """Generates a PRL Solr document."""
 
         self.s3_host = s3_host
-        self.original_thumbnail_metadata_prop = None
 
         self.soup = BeautifulSoup(file_object, 'lxml-xml', from_encoding='utf-8')
         self.id = identifier
@@ -76,16 +75,13 @@ class PRLSolrDocument:
         self._add_fields()
         self._add_decades()
         self._add_external_links()
-        self._add_thumbnail_url()
+        self.original_thumbnail_metadata_prop = self._find_potential_thumbnail()
 
     def get_record_identifier(self):
         return self.id
 
     def original_thumbnail_metadata(self):
         return self.original_thumbnail_metadata_prop
-
-    def discard_incorrect_thumbnail_url(self):
-        del self.pysolr_doc['thumbnail_url']
 
     def complete_collection_list(self, collection_key_list: List[str], collection_name_list: List[str]):
         """Completes the list of collections for this record.
@@ -201,17 +197,32 @@ class PRLSolrDocument:
             if rest:
                 doc['alternate_external_link'] = rest
 
-    def _add_thumbnail_url(self):
-        doc = self.get_pysolr_doc()
+    def add_thumbnail_url(self):
+        """If a thumbnail has been identified for this item, adds its URL to the Solr document."""
+        if self.original_thumbnail_metadata_prop is not None:
+            urlencoded_thumbnail_path = urllib.parse.quote(self.get_thumbnail_s3_key())
+            self.get_pysolr_doc()['thumbnail_url'] = urllib.parse.urlunparse(('http', self.s3_host, urlencoded_thumbnail_path, '', '', ''))
 
-        original_thumbnail_metadata_prop = self._find_thumbnail()
-        if original_thumbnail_metadata_prop is not None:
-            self.original_thumbnail_metadata_prop = original_thumbnail_metadata_prop
-            doc['thumbnail_url'] = urllib.parse.urlunparse(('http', self.s3_host, urllib.parse.quote(self.get_thumbnail_s3_key()), '', '', ''))
-    
-    def _find_thumbnail(self):
-        """Return the URL and Content-Type of the thumbnail for a Dublin Core record.
-        If none exists, return None.
+    def has_thumbnail_format(self):
+        """Returns true if the thumbnail format is known, and false otherwise."""
+        return (self.original_thumbnail_metadata_prop['extension'] is not None and
+            self.original_thumbnail_metadata_prop['content-type'] is not None)
+
+    def set_thumbnail_format(self, content_type):
+        """Sets the format metadata for the thumbnail."""
+
+        # Determine the filetype extension based on the content-type
+        filetype_extension = guess_extension(content_type)
+        if filetype_extension == '.jpe':
+            # Use the more common .jpg extension instead of the default .jpe
+            filetype_extension = '.jpg'
+
+        self.original_thumbnail_metadata_prop['extension'] = filetype_extension
+        self.original_thumbnail_metadata_prop['content-type'] = content_type
+
+    def _find_potential_thumbnail(self):
+        """Return the URL (and image format metadata, if it can be inferred from the URL) of a potential thumbnail
+        found in a Dublin Core record. If none exists, return None.
         """
         checked_urls = []
         for bs_filter in THUMBNAIL_FIELD_PATTERNS:
@@ -242,6 +253,17 @@ class PRLSolrDocument:
                                 # no content-type
                                 except KeyError:
                                     checked_urls.append(possible_url)
+                            else:
+                                if "file=thumbnail" in urllib.parse.urlparse(possible_url).query:
+                                    logging.debug('Found image at {}'.format(possible_url))
+
+                                    # Cannot infer image format metadata from the URL, so will determine it when the
+                                    # Indexer saves it to disk
+                                    return {
+                                        'url': possible_url,
+                                        'extension': None,
+                                        'content-type': None
+                                    }
                     except ValidationError:
                         # Continue loop
                         pass
@@ -281,15 +303,18 @@ class PRLSolrDocument:
         return components[0] == 'oai' and len(components) == 3
 
     def get_thumbnail_s3_key(self):
+        """Returns the AWS S3 key to use for the thumbnail."""
+
         return PRLSolrDocument.create_thumbnail_s3_key(
             self.pysolr_doc['institutionKey'],
             self.pysolr_doc['collectionKey'][0],
             self.get_record_identifier(),
-            self.original_thumbnail_metadata()['extension'] or guess_extension(self.original_thumbnail_metadata()['content-type'])
+            self.original_thumbnail_metadata()['extension'] if self.has_thumbnail_format() else ''
         )
 
     @staticmethod
     def create_thumbnail_s3_key(institution_key: str, collection_key: str, identifier: str, extension: str):
+        """Creates a AWS S3 key for a thumbnail using its filetype and various identifiers."""
         return '{}/{}/{}{}'.format(
             urllib.parse.quote(institution_key, safe=''),
             urllib.parse.quote(collection_key, safe=''),
