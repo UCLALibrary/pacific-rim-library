@@ -25,10 +25,10 @@ On delete events, it removes any traces of the record represented by the deleted
 1. Create a local `prl-solr` Docker image:
 
     1. Create a local `solr4` Docker image by following the instructions at https://github.com/docker-solr/docker-solr4 (you must be authenticated to hub.docker.com)
-    1. Clone https://github.com/UCLALibrary/prrla-solr-conf and then run something like:
+    1. Clone https://github.com/UCLALibrary/prrla-solr-conf and then run something like this (note that the value of the `CORE_NAME` build arg must match the value of `SOLR_CORE_NAME` specified in `.env`):
 
         ```bash
-        $ docker image build . --tag prl-solr:latest
+        $ docker image build --build-arg CORE_NAME=prl . --tag prl-solr:latest
         ```
 
 1. Create a local jOAI Docker image per the instructions [here](https://github.com/NCAR/joai-project/blob/25c00ccc7d63c2c3a3c673a321be6a21bc474b78/web/docs/DOCKER_BUILD.md).

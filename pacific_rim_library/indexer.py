@@ -81,7 +81,11 @@ class Indexer(object):
         """Initializes the interfaces for all third-party services NOT instantiated by this module."""
 
         try:
-            solr_base_url = 'http://{}:{}/solr/prl'.format(os.environ.get('SOLR_HOST'), os.environ.get('SOLR_PORT'))
+            solr_base_url = 'http://{}:{}/solr/{}'.format(
+                os.environ.get('SOLR_HOST'),
+                os.environ.get('SOLR_PORT'),
+                os.environ.get('SOLR_CORE_NAME')
+            )
 
             # Make sure we can connect to Solr.
             def solr_ping(base_url):

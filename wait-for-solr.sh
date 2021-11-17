@@ -17,7 +17,7 @@ fi
 
 SECONDS=0
 
-until curl -s "http://${SOLR_HOST}:${SOLR_PORT}/solr/prl/admin/ping"; do
+until curl -s "http://${SOLR_HOST}:${SOLR_PORT}/solr/${SOLR_CORE_NAME}/admin/ping"; do
 
     if [[ ${SOLR_PING_TIMEOUT} -gt 0 && ${SECONDS} -ge ${SOLR_PING_TIMEOUT} ]]
     then

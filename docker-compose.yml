@@ -19,6 +19,7 @@ services:
       - LEVELDB_RECORD_SETS_DIRECTORY
       - SOLR_HOST
       - SOLR_PORT
+      - SOLR_CORE_NAME
       - SOLR_PING_TIMEOUT
       - THUMBNAILS_DIRECTORY
     volumes:
