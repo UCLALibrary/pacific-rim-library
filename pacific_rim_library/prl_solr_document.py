@@ -46,11 +46,18 @@ EXTERNAL_LINK_FIELD_PATTERNS = [
 
 # Regular expressions to match against fields to search for thumbnail URLs.
 THUMBNAIL_FIELD_PATTERNS = [
+  "relation",
   "description",
   "identifier\\.thumbnail",
   "identifier",
   "identifier\\.(?:.+)",
 ]
+
+# Thumbnail URL pattern for California Digital Library (CDL)
+CDL_THUMBNAIL_URL_PATTERN = re.compile("^https://calisphere\.org/clip/[1-9][0-9]{0,}x[1-9][0-9]{0,}/[0-9a-f]{32}$")
+
+# Thumbnail URL pattern for University of Sydney
+SYDNEY_THUMBNAIL_URL_PATTERN = re.compile("^https://digital\.library\.sydney\.edu\.au/assets/((pic/[1-9][0-9]{0,})|(display/[1-9][0-9]{0,}-(([1-9][0-9]{0,})|(max))))$")
 
 class PRLSolrDocument:
     """Generates PRL Solr documents."""
@@ -172,7 +179,7 @@ class PRLSolrDocument:
                 if value is not None:
                     try:
                         URLValidator()(value)
-                        if os.path.splitext(urllib.parse.urlparse(value).path)[1] not in ['.jpg', '.jpeg', '.png', '.tif', '.tiff']:
+                        if os.path.splitext(urllib.parse.urlparse(value).path)[1] not in ['.jpg', '.jpeg', '.png', '.tif', '.tiff'] and not self._is_cdl_thumbnail_url(value) and not self._is_sydney_thumbnail_url(value) and not self._is_polyu_thumbnail_url(value):
                             hyperlinks.append(value)
                     except ValidationError:
                         # Continue loop
@@ -253,21 +260,32 @@ class PRLSolrDocument:
                                 # no content-type
                                 except KeyError:
                                     checked_urls.append(possible_url)
-                            else:
-                                if "file=thumbnail" in urllib.parse.urlparse(possible_url).query:
-                                    logging.debug('Found image at {}'.format(possible_url))
+                            elif self._is_cdl_thumbnail_url(possible_url) or self._is_sydney_thumbnail_url(possible_url) or self._is_polyu_thumbnail_url(possible_url):
+                                logging.debug('Found image at {}'.format(possible_url))
 
-                                    # Cannot infer image format metadata from the URL, so will determine it when the
-                                    # Indexer saves it to disk
-                                    return {
-                                        'url': possible_url,
-                                        'extension': None,
-                                        'content-type': None
-                                    }
+                                # Cannot infer image format metadata from the URL, so will determine it when the
+                                # Indexer saves it to disk
+                                return {
+                                    'url': possible_url,
+                                    'extension': None,
+                                    'content-type': None
+                                }
                     except ValidationError:
                         # Continue loop
                         pass
         return None
+
+    def _is_polyu_thumbnail_url(self, url):
+        """Determines if a URL in a PolyU (Hong Kong Polytechnic University) record is expected to resolve to a thumbnail."""
+        return "file=thumbnail" in urllib.parse.urlparse(url).query
+
+    def _is_cdl_thumbnail_url(self, url):
+        """Determines if a URL in a CDL record is expected to resolve to a thumbnail."""
+        return CDL_THUMBNAIL_URL_PATTERN.match(url) is not None
+
+    def _is_sydney_thumbnail_url(self, url):
+        """Determines if a URL in a University of Sydney record is expected to resolve to a thumbnail."""
+        return SYDNEY_THUMBNAIL_URL_PATTERN.match(url) is not None
 
     def _make_thumbnail_request(self, fn, url, stream, redirect):
         """Make request to the given URL and handle the response.

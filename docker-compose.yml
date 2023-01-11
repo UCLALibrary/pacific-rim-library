@@ -30,7 +30,7 @@ services:
     restart: unless-stopped
     command: ["./wait-for-solr.sh", "python", "-m", "pacific_rim_library.indexer"]
   joai:
-    image: ncar/joai-project:3.2
+    image: ncar/joai-project:v3.3
     volumes:
       - joai_data:${JOAI_DATA_DIRECTORY}
       - joai_harvester_settings:${JOAI_HARVESTER_SETTINGS_DIRECTORY}
